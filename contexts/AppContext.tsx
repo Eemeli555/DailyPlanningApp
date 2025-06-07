@@ -2,9 +2,9 @@ import React, { createContext, ReactNode, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
-import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { format, isWithinInterval, startOfDay, endOfDay, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { useRouter } from 'expo-router';
-import { DailyPlan, Goal, NotificationConfig, Workout, Exercise } from '@/types';
+import { DailyPlan, Goal, NotificationConfig, Workout, Exercise, DailyEntry, CustomColumn, DailyPlannerSettings } from '@/types';
 import { generateId } from '@/utils/helpers';
 
 interface AppContextProps {
@@ -14,6 +14,10 @@ interface AppContextProps {
   progressToday: number;
   workouts: Workout[];
   quoteOfTheDay: { text: string; author: string };
+  
+  // Daily Planner
+  dailyEntries: DailyEntry[];
+  plannerSettings: DailyPlannerSettings;
   
   addGoal: (data: { 
     title: string;
@@ -53,6 +57,15 @@ interface AppContextProps {
   }) => void;
   deleteWorkout: (workoutId: string) => void;
   getWorkoutById: (workoutId: string) => Workout | undefined;
+  
+  // Daily Planner functions
+  getDailyEntry: (date: string) => DailyEntry | undefined;
+  updateDailyEntry: (date: string, updates: Partial<DailyEntry>) => void;
+  addCustomColumn: (column: CustomColumn) => void;
+  updateCustomColumn: (columnId: string, updates: Partial<CustomColumn>) => void;
+  removeCustomColumn: (columnId: string) => void;
+  updatePlannerSettings: (settings: Partial<DailyPlannerSettings>) => void;
+  getEntriesForMonth: (year: number, month: number) => DailyEntry[];
 }
 
 export const AppContext = createContext<AppContextProps>({
@@ -62,6 +75,8 @@ export const AppContext = createContext<AppContextProps>({
   progressToday: 0,
   workouts: [],
   quoteOfTheDay: { text: '', author: '' },
+  dailyEntries: [],
+  plannerSettings: { customColumns: [], autoFillEnabled: true },
   
   addGoal: () => {},
   updateGoal: () => {},
@@ -79,6 +94,14 @@ export const AppContext = createContext<AppContextProps>({
   updateWorkout: () => {},
   deleteWorkout: () => {},
   getWorkoutById: () => undefined,
+  
+  getDailyEntry: () => undefined,
+  updateDailyEntry: () => {},
+  addCustomColumn: () => {},
+  updateCustomColumn: () => {},
+  removeCustomColumn: () => {},
+  updatePlannerSettings: () => {},
+  getEntriesForMonth: () => [],
 });
 
 const QUOTES = [
@@ -115,6 +138,11 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   const [dailyPlans, setDailyPlans] = useState<DailyPlan[]>([]);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [quoteOfTheDay, setQuoteOfTheDay] = useState(QUOTES[0]);
+  const [dailyEntries, setDailyEntries] = useState<DailyEntry[]>([]);
+  const [plannerSettings, setPlannerSettings] = useState<DailyPlannerSettings>({
+    customColumns: [],
+    autoFillEnabled: true,
+  });
   const [loaded, setLoaded] = useState(false);
   
   useEffect(() => {
@@ -136,6 +164,18 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         const storedWorkouts = await AsyncStorage.getItem('workouts');
         if (storedWorkouts) {
           setWorkouts(JSON.parse(storedWorkouts));
+        }
+        
+        // Load daily entries
+        const storedDailyEntries = await AsyncStorage.getItem('dailyEntries');
+        if (storedDailyEntries) {
+          setDailyEntries(JSON.parse(storedDailyEntries));
+        }
+        
+        // Load planner settings
+        const storedPlannerSettings = await AsyncStorage.getItem('plannerSettings');
+        if (storedPlannerSettings) {
+          setPlannerSettings(JSON.parse(storedPlannerSettings));
         }
         
         // Set quote of the day
@@ -173,6 +213,18 @@ export const AppProvider = ({ children }: AppProviderProps) => {
           }
         }
         
+        // Create today's daily entry if it doesn't exist
+        const todayEntry = JSON.parse(storedDailyEntries || '[]').find(
+          (entry: DailyEntry) => entry.date === todayStr
+        );
+        
+        if (!todayEntry) {
+          const newEntry = createDailyEntry(todayStr);
+          const updatedEntries = [...JSON.parse(storedDailyEntries || '[]'), newEntry];
+          setDailyEntries(updatedEntries);
+          await AsyncStorage.setItem('dailyEntries', JSON.stringify(updatedEntries));
+        }
+        
         // Set up notifications if needed
         if (Platform.OS !== 'web') {
           registerForPushNotificationsAsync();
@@ -187,6 +239,38 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     
     loadData();
   }, []);
+
+  // Create a new daily entry with default values
+  const createDailyEntry = (date: string): DailyEntry => {
+    const todayGoals = todaysGoals.map(goal => goal.title);
+    const completedGoals = todaysGoals.filter(goal => goal.completed).length;
+    const rating = todaysGoals.length > 0 ? Math.round((completedGoals / todaysGoals.length) * 100) : 0;
+    
+    const customFields: { [key: string]: any } = {};
+    plannerSettings.customColumns.forEach(column => {
+      customFields[column.id] = column.defaultValue || '';
+    });
+    
+    return {
+      id: generateId(),
+      date,
+      goals: todayGoals,
+      sleep: {
+        hours: 0,
+        quality: 'fair',
+      },
+      meals: {},
+      workouts: {
+        completed: [],
+        duration: 0,
+      },
+      thoughts: '',
+      rating,
+      customFields,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  };
 
   // Calculate progress for today
   const progressToday = todaysGoals.length > 0
@@ -229,21 +313,37 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       
       setDailyPlans(updatedPlans);
       await AsyncStorage.setItem('dailyPlans', JSON.stringify(updatedPlans));
+      
+      // Update today's daily entry with current goals and rating
+      const entryIndex = dailyEntries.findIndex(entry => entry.date === today);
+      if (entryIndex >= 0) {
+        const updatedEntries = [...dailyEntries];
+        updatedEntries[entryIndex] = {
+          ...updatedEntries[entryIndex],
+          goals: todaysGoals.map(goal => goal.title),
+          rating: Math.round(progress * 100),
+          updatedAt: new Date().toISOString(),
+        };
+        setDailyEntries(updatedEntries);
+        await AsyncStorage.setItem('dailyEntries', JSON.stringify(updatedEntries));
+      }
     };
     
     updateTodaysPlan();
   }, [todaysGoals, loaded]);
   
-  // Persist goals library whenever it changes
+  // Persist data whenever it changes
   useEffect(() => {
     if (!loaded) return;
     
-    const saveGoalsLibrary = async () => {
+    const saveData = async () => {
       await AsyncStorage.setItem('goalsLibrary', JSON.stringify(goalsLibrary));
+      await AsyncStorage.setItem('dailyEntries', JSON.stringify(dailyEntries));
+      await AsyncStorage.setItem('plannerSettings', JSON.stringify(plannerSettings));
     };
     
-    saveGoalsLibrary();
-  }, [goalsLibrary, loaded]);
+    saveData();
+  }, [goalsLibrary, dailyEntries, plannerSettings, loaded]);
   
   // Add a new goal
   const addGoal = (data: { 
@@ -498,6 +598,83 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     return workouts.find(workout => workout.id === workoutId);
   };
 
+  // Daily Planner functions
+  const getDailyEntry = (date: string) => {
+    return dailyEntries.find(entry => entry.date === date);
+  };
+
+  const updateDailyEntry = (date: string, updates: Partial<DailyEntry>) => {
+    setDailyEntries(prev => {
+      const entryIndex = prev.findIndex(entry => entry.date === date);
+      
+      if (entryIndex >= 0) {
+        const updated = [...prev];
+        updated[entryIndex] = {
+          ...updated[entryIndex],
+          ...updates,
+          updatedAt: new Date().toISOString(),
+        };
+        return updated;
+      } else {
+        // Create new entry if it doesn't exist
+        const newEntry = {
+          ...createDailyEntry(date),
+          ...updates,
+        };
+        return [...prev, newEntry];
+      }
+    });
+  };
+
+  const addCustomColumn = (column: CustomColumn) => {
+    setPlannerSettings(prev => ({
+      ...prev,
+      customColumns: [...prev.customColumns, column],
+    }));
+  };
+
+  const updateCustomColumn = (columnId: string, updates: Partial<CustomColumn>) => {
+    setPlannerSettings(prev => ({
+      ...prev,
+      customColumns: prev.customColumns.map(col =>
+        col.id === columnId ? { ...col, ...updates } : col
+      ),
+    }));
+  };
+
+  const removeCustomColumn = (columnId: string) => {
+    setPlannerSettings(prev => ({
+      ...prev,
+      customColumns: prev.customColumns.filter(col => col.id !== columnId),
+    }));
+    
+    // Remove the custom field from all entries
+    setDailyEntries(prev =>
+      prev.map(entry => {
+        const { [columnId]: removed, ...restCustomFields } = entry.customFields;
+        return {
+          ...entry,
+          customFields: restCustomFields,
+          updatedAt: new Date().toISOString(),
+        };
+      })
+    );
+  };
+
+  const updatePlannerSettings = (settings: Partial<DailyPlannerSettings>) => {
+    setPlannerSettings(prev => ({ ...prev, ...settings }));
+  };
+
+  const getEntriesForMonth = (year: number, month: number) => {
+    const monthStart = startOfMonth(new Date(year, month - 1));
+    const monthEnd = endOfMonth(new Date(year, month - 1));
+    
+    return dailyEntries.filter(entry => {
+      const entryDate = new Date(entry.date);
+      return isWithinInterval(entryDate, { start: monthStart, end: monthEnd });
+    });
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -507,6 +684,8 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         progressToday,
         workouts,
         quoteOfTheDay,
+        dailyEntries,
+        plannerSettings,
         
         addGoal,
         updateGoal,
@@ -524,6 +703,14 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         updateWorkout,
         deleteWorkout,
         getWorkoutById,
+        
+        getDailyEntry,
+        updateDailyEntry,
+        addCustomColumn,
+        updateCustomColumn,
+        removeCustomColumn,
+        updatePlannerSettings,
+        getEntriesForMonth,
       }}
     >
       {children}

@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { View, StyleSheet } from 'react-native';
-import { Chrome as Home, ListTodo, Dumbbell, CalendarDays } from 'lucide-react-native';
+import { Chrome as Home, ListTodo, Dumbbell, BarChart3 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '@/constants/theme';
 
@@ -58,11 +58,11 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="calendar"
+        name="stats"
         options={{
-          title: 'Calendar',
+          title: 'Statistics',
           tabBarIcon: ({ color, size }) => (
-            <CalendarDays size={size - 2} color={color} />
+            <BarChart3 size={size - 2} color={color} />
           ),
         }}
       />

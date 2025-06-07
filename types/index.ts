@@ -49,3 +49,46 @@ export interface NotificationConfig {
   type: 'timer' | 'alarm';
   seconds: number;
 }
+
+export interface DailyEntry {
+  id: string;
+  date: string; // ISO format YYYY-MM-DD
+  goals: string[];
+  sleep: {
+    hours: number;
+    quality: 'poor' | 'fair' | 'good' | 'excellent';
+    notes?: string;
+  };
+  meals: {
+    breakfast?: string;
+    lunch?: string;
+    dinner?: string;
+    snacks?: string;
+    notes?: string;
+  };
+  workouts: {
+    completed: Workout[];
+    duration: number; // total minutes
+    notes?: string;
+  };
+  thoughts: string;
+  rating: number; // 0-100 percentage
+  customFields: { [key: string]: any };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomColumn {
+  id: string;
+  name: string;
+  type: 'text' | 'number' | 'boolean' | 'rating' | 'time' | 'multiline';
+  defaultValue?: any;
+  options?: string[]; // for select type
+  required?: boolean;
+}
+
+export interface DailyPlannerSettings {
+  customColumns: CustomColumn[];
+  autoFillEnabled: boolean;
+  reminderTime?: string; // HH:MM format
+}

@@ -1,17 +1,23 @@
 import { useContext, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, isWithinInterval } from 'date-fns';
+import { Calendar, BarChart3, TrendingUp } from 'lucide-react-native';
 
 import { AppContext } from '@/contexts/AppContext';
 import { COLORS } from '@/constants/theme';
 import ProgressCircle from '@/components/ProgressCircle';
 import BarChart from '@/components/BarChart';
+import DailyPlannerTable from '@/components/DailyPlannerTable';
 import { getCompletionStatus } from '@/utils/helpers';
+
+type ViewMode = 'planner' | 'analytics';
 
 export default function StatsScreen() {
   const insets = useSafeAreaInsets();
   const { dailyPlans, getAverageProgress } = useContext(AppContext);
+  const [viewMode, setViewMode] = useState<ViewMode>('planner');
+  const [currentDate, setCurrentDate] = useState(new Date());
   
   // Calculate overall average
   const overallAverage = getAverageProgress();
@@ -61,106 +67,151 @@ export default function StatsScreen() {
   
   const { label: overallLabel, color: overallColor } = getCompletionStatus(overallAverage);
   const { label: weeklyLabel, color: weeklyColor } = getCompletionStatus(weekAverage);
-  
+
+  const renderAnalytics = () => (
+    <ScrollView
+      style={styles.scrollContent}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.summaryContainer}>
+        <View style={styles.progressCard}>
+          <Text style={styles.progressTitle}>Overall Progress</Text>
+          <ProgressCircle
+            percentage={overallAverage * 100}
+            color={overallColor}
+            size={80}
+          />
+          <Text style={[styles.progressLabel, { color: overallColor }]}>
+            {overallLabel}
+          </Text>
+          <Text style={styles.progressPercentage}>
+            {Math.round(overallAverage * 100)}%
+          </Text>
+        </View>
+        
+        <View style={styles.progressCard}>
+          <Text style={styles.progressTitle}>This Week</Text>
+          <ProgressCircle
+            percentage={weekAverage * 100}
+            color={weeklyColor}
+            size={80}
+          />
+          <Text style={[styles.progressLabel, { color: weeklyColor }]}>
+            {weeklyLabel}
+          </Text>
+          <Text style={styles.progressPercentage}>
+            {Math.round(weekAverage * 100)}%
+          </Text>
+        </View>
+      </View>
+      
+      <View style={styles.chartSection}>
+        <Text style={styles.sectionTitle}>Weekly Overview</Text>
+        <Text style={styles.sectionSubtitle}>
+          {format(weekStart, 'MMM d')} - {format(weekEnd, 'MMM d, yyyy')}
+        </Text>
+        
+        <View style={styles.chartContainer}>
+          <BarChart 
+            data={weeklyData}
+            valueKey="progress"
+            labelKey="day"
+          />
+        </View>
+      </View>
+      
+      <View style={styles.chartSection}>
+        <Text style={styles.sectionTitle}>Monthly Trend</Text>
+        <Text style={styles.sectionSubtitle}>Last 4 weeks</Text>
+        
+        <View style={styles.chartContainer}>
+          <BarChart 
+            data={last4Weeks}
+            valueKey="progress"
+            labelKey="week"
+          />
+        </View>
+      </View>
+      
+      <View style={styles.statsSection}>
+        <Text style={styles.sectionTitle}>Productivity Breakdown</Text>
+        
+        <View style={styles.statsRow}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>
+              {dailyPlans.length}
+            </Text>
+            <Text style={styles.statLabel}>Days Tracked</Text>
+          </View>
+          
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>
+              {dailyPlans.reduce((sum, plan) => sum + plan.goalsCompleted, 0)}
+            </Text>
+            <Text style={styles.statLabel}>Goals Completed</Text>
+          </View>
+          
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>
+              {dailyPlans.reduce((sum, plan) => sum + plan.goals.length, 0)}
+            </Text>
+            <Text style={styles.statLabel}>Total Goals</Text>
+          </View>
+        </View>
+      </View>
+    </ScrollView>
+  );
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Statistics</Text>
-        <Text style={styles.subtitle}>Track your progress over time</Text>
+        <Text style={styles.title}>Statistics & Planning</Text>
+        <Text style={styles.subtitle}>Track progress and plan your days</Text>
+        
+        <View style={styles.viewToggle}>
+          <TouchableOpacity
+            style={[
+              styles.toggleButton,
+              viewMode === 'planner' && styles.activeToggle
+            ]}
+            onPress={() => setViewMode('planner')}
+          >
+            <Calendar size={16} color={viewMode === 'planner' ? COLORS.white : COLORS.neutral[600]} />
+            <Text style={[
+              styles.toggleText,
+              viewMode === 'planner' && styles.activeToggleText
+            ]}>
+              Daily Planner
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.toggleButton,
+              viewMode === 'analytics' && styles.activeToggle
+            ]}
+            onPress={() => setViewMode('analytics')}
+          >
+            <TrendingUp size={16} color={viewMode === 'analytics' ? COLORS.white : COLORS.neutral[600]} />
+            <Text style={[
+              styles.toggleText,
+              viewMode === 'analytics' && styles.activeToggleText
+            ]}>
+              Analytics
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
       
-      <ScrollView
-        style={styles.scrollContent}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.summaryContainer}>
-          <View style={styles.progressCard}>
-            <Text style={styles.progressTitle}>Overall Progress</Text>
-            <ProgressCircle
-              percentage={overallAverage * 100}
-              color={overallColor}
-              size={80}
-            />
-            <Text style={[styles.progressLabel, { color: overallColor }]}>
-              {overallLabel}
-            </Text>
-            <Text style={styles.progressPercentage}>
-              {Math.round(overallAverage * 100)}%
-            </Text>
-          </View>
-          
-          <View style={styles.progressCard}>
-            <Text style={styles.progressTitle}>This Week</Text>
-            <ProgressCircle
-              percentage={weekAverage * 100}
-              color={weeklyColor}
-              size={80}
-            />
-            <Text style={[styles.progressLabel, { color: weeklyColor }]}>
-              {weeklyLabel}
-            </Text>
-            <Text style={styles.progressPercentage}>
-              {Math.round(weekAverage * 100)}%
-            </Text>
-          </View>
-        </View>
-        
-        <View style={styles.chartSection}>
-          <Text style={styles.sectionTitle}>Weekly Overview</Text>
-          <Text style={styles.sectionSubtitle}>
-            {format(weekStart, 'MMM d')} - {format(weekEnd, 'MMM d, yyyy')}
-          </Text>
-          
-          <View style={styles.chartContainer}>
-            <BarChart 
-              data={weeklyData}
-              valueKey="progress"
-              labelKey="day"
-            />
-          </View>
-        </View>
-        
-        <View style={styles.chartSection}>
-          <Text style={styles.sectionTitle}>Monthly Trend</Text>
-          <Text style={styles.sectionSubtitle}>Last 4 weeks</Text>
-          
-          <View style={styles.chartContainer}>
-            <BarChart 
-              data={last4Weeks}
-              valueKey="progress"
-              labelKey="week"
-            />
-          </View>
-        </View>
-        
-        <View style={styles.statsSection}>
-          <Text style={styles.sectionTitle}>Productivity Breakdown</Text>
-          
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>
-                {dailyPlans.length}
-              </Text>
-              <Text style={styles.statLabel}>Days Tracked</Text>
-            </View>
-            
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>
-                {dailyPlans.reduce((sum, plan) => sum + plan.goalsCompleted, 0)}
-              </Text>
-              <Text style={styles.statLabel}>Goals Completed</Text>
-            </View>
-            
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>
-                {dailyPlans.reduce((sum, plan) => sum + plan.goals.length, 0)}
-              </Text>
-              <Text style={styles.statLabel}>Total Goals</Text>
-            </View>
-          </View>
-        </View>
-      </ScrollView>
+      {viewMode === 'planner' ? (
+        <DailyPlannerTable 
+          currentDate={currentDate}
+          onDateChange={setCurrentDate}
+        />
+      ) : (
+        renderAnalytics()
+      )}
     </View>
   );
 }
@@ -173,7 +224,9 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 8,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.neutral[200],
   },
   title: {
     fontSize: 28,
@@ -185,6 +238,34 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[500],
     marginTop: 4,
+    marginBottom: 16,
+  },
+  viewToggle: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.neutral[100],
+    borderRadius: 8,
+    padding: 4,
+  },
+  toggleButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    gap: 6,
+  },
+  activeToggle: {
+    backgroundColor: COLORS.primary[600],
+  },
+  toggleText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.neutral[600],
+  },
+  activeToggleText: {
+    color: COLORS.white,
   },
   scrollContent: {
     flex: 1,
