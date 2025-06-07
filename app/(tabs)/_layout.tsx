@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { View, StyleSheet } from 'react-native';
-import { Chrome as Home, ListTodo, Dumbbell, BarChart3 } from 'lucide-react-native';
+import { Chrome as Home, ListTodo, Dumbbell, ChartBar as BarChart3 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '@/constants/theme';
 

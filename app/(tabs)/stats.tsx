@@ -2,7 +2,7 @@ import { useContext, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, isWithinInterval } from 'date-fns';
-import { Calendar, BarChart3, TrendingUp } from 'lucide-react-native';
+import { Calendar, ChartBar as BarChart3, TrendingUp } from 'lucide-react-native';
 
 import { AppContext } from '@/contexts/AppContext';
 import { COLORS } from '@/constants/theme';

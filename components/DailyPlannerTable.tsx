@@ -1,7 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal } from 'react-native';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addDays, subDays } from 'date-fns';
-import { ChevronLeft, ChevronRight, Plus, Settings, Edit3, Star } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Plus, Settings, CreditCard as Edit3, Star } from 'lucide-react-native';
 import { AppContext } from '@/contexts/AppContext';
 import { COLORS } from '@/constants/theme';
 import { DailyEntry, CustomColumn } from '@/types';
