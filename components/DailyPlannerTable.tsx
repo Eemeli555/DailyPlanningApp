@@ -1,7 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal } from 'react-native';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addDays, subDays } from 'date-fns';
-import { ChevronLeft, ChevronRight, Plus, Settings, CreditCard as Edit3, Star } from 'lucide-react-native';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addDays, subDays, isToday, isSameMonth } from 'date-fns';
+import { ChevronLeft, ChevronRight, Plus, Settings, Edit3, Star, Calendar } from 'lucide-react-native';
 import { AppContext } from '@/contexts/AppContext';
 import { COLORS } from '@/constants/theme';
 import { DailyEntry, CustomColumn } from '@/types';
@@ -35,6 +35,12 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
   const calendarStart = subDays(monthStart, getDay(monthStart));
   const calendarEnd = addDays(monthEnd, 6 - getDay(monthEnd));
   const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+  
+  // Group days into weeks for the board layout
+  const weeks = [];
+  for (let i = 0; i < calendarDays.length; i += 7) {
+    weeks.push(calendarDays.slice(i, i + 7));
+  }
   
   const goToPreviousMonth = () => {
     const newDate = new Date(currentDate);
@@ -145,13 +151,167 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
     return COLORS.error[500];
   };
   
-  const isCurrentMonth = (day: Date) => {
-    return day.getMonth() === currentDate.getMonth();
+  const getSleepQualityColor = (quality: string) => {
+    switch (quality) {
+      case 'excellent': return COLORS.success[500];
+      case 'good': return COLORS.success[400];
+      case 'fair': return COLORS.warning[500];
+      case 'poor': return COLORS.error[500];
+      default: return COLORS.neutral[400];
+    }
   };
-  
-  const isToday = (day: Date) => {
-    const today = new Date();
-    return format(day, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
+
+  const renderTableHeader = () => (
+    <View style={styles.tableHeader}>
+      <View style={[styles.headerCell, styles.dateColumn]}>
+        <Text style={styles.headerText}>Date</Text>
+      </View>
+      <View style={[styles.headerCell, styles.dataColumn]}>
+        <Text style={styles.headerText}>Rating</Text>
+      </View>
+      <View style={[styles.headerCell, styles.dataColumn]}>
+        <Text style={styles.headerText}>Sleep</Text>
+      </View>
+      <View style={[styles.headerCell, styles.dataColumn]}>
+        <Text style={styles.headerText}>Goals</Text>
+      </View>
+      <View style={[styles.headerCell, styles.dataColumn]}>
+        <Text style={styles.headerText}>Workouts</Text>
+      </View>
+      <View style={[styles.headerCell, styles.notesColumn]}>
+        <Text style={styles.headerText}>Notes</Text>
+      </View>
+      {plannerSettings.customColumns.map(column => (
+        <View key={column.id} style={[styles.headerCell, styles.dataColumn]}>
+          <Text style={styles.headerText}>{column.name}</Text>
+        </View>
+      ))}
+    </View>
+  );
+
+  const renderTableRow = (day: Date, index: number) => {
+    const entry = getEntryForDay(day);
+    const isCurrentMonth = isSameMonth(day, currentDate);
+    const isTodayDate = isToday(day);
+    
+    return (
+      <TouchableOpacity
+        key={index}
+        style={[
+          styles.tableRow,
+          !isCurrentMonth && styles.outsideMonthRow,
+          isTodayDate && styles.todayRow,
+          entry && styles.hasDataRow,
+        ]}
+        onPress={() => handleDayPress(day)}
+      >
+        {/* Date Column */}
+        <View style={[styles.cell, styles.dateColumn]}>
+          <View style={styles.dateContainer}>
+            <Text style={[
+              styles.dayNumber,
+              !isCurrentMonth && styles.outsideMonthText,
+              isTodayDate && styles.todayText,
+            ]}>
+              {format(day, 'd')}
+            </Text>
+            <Text style={[
+              styles.dayName,
+              !isCurrentMonth && styles.outsideMonthText,
+            ]}>
+              {format(day, 'EEE')}
+            </Text>
+          </View>
+        </View>
+
+        {/* Rating Column */}
+        <View style={[styles.cell, styles.dataColumn]}>
+          {entry?.rating ? (
+            <View style={styles.ratingContainer}>
+              <View style={[
+                styles.ratingBadge,
+                { backgroundColor: getRatingColor(entry.rating) }
+              ]}>
+                <Text style={styles.ratingText}>{entry.rating}%</Text>
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.emptyCell}>—</Text>
+          )}
+        </View>
+
+        {/* Sleep Column */}
+        <View style={[styles.cell, styles.dataColumn]}>
+          {entry?.sleep.hours ? (
+            <View style={styles.sleepContainer}>
+              <Text style={styles.sleepHours}>{entry.sleep.hours}h</Text>
+              <View style={[
+                styles.qualityDot,
+                { backgroundColor: getSleepQualityColor(entry.sleep.quality) }
+              ]} />
+            </View>
+          ) : (
+            <Text style={styles.emptyCell}>—</Text>
+          )}
+        </View>
+
+        {/* Goals Column */}
+        <View style={[styles.cell, styles.dataColumn]}>
+          {entry?.goals.length ? (
+            <View style={styles.goalsContainer}>
+              <Text style={styles.goalsCount}>{entry.goals.length}</Text>
+              <Text style={styles.goalsLabel}>goals</Text>
+            </View>
+          ) : (
+            <Text style={styles.emptyCell}>—</Text>
+          )}
+        </View>
+
+        {/* Workouts Column */}
+        <View style={[styles.cell, styles.dataColumn]}>
+          {entry?.workouts.duration ? (
+            <View style={styles.workoutContainer}>
+              <Text style={styles.workoutDuration}>{entry.workouts.duration}m</Text>
+            </View>
+          ) : (
+            <Text style={styles.emptyCell}>—</Text>
+          )}
+        </View>
+
+        {/* Notes Column */}
+        <View style={[styles.cell, styles.notesColumn]}>
+          {entry?.thoughts ? (
+            <Text style={styles.notesText} numberOfLines={2}>
+              {entry.thoughts}
+            </Text>
+          ) : (
+            <Text style={styles.emptyCell}>—</Text>
+          )}
+        </View>
+
+        {/* Custom Columns */}
+        {plannerSettings.customColumns.map(column => (
+          <View key={column.id} style={[styles.cell, styles.dataColumn]}>
+            {entry?.customFields[column.id] ? (
+              column.type === 'rating' ? (
+                <View style={[
+                  styles.ratingBadge,
+                  { backgroundColor: getRatingColor(entry.customFields[column.id]) }
+                ]}>
+                  <Text style={styles.ratingText}>{entry.customFields[column.id]}%</Text>
+                </View>
+              ) : (
+                <Text style={styles.customFieldText} numberOfLines={1}>
+                  {entry.customFields[column.id]}
+                </Text>
+              )
+            ) : (
+              <Text style={styles.emptyCell}>—</Text>
+            )}
+          </View>
+        ))}
+      </TouchableOpacity>
+    );
   };
 
   return (
@@ -178,55 +338,14 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
         </TouchableOpacity>
       </View>
       
-      {/* Days of week header */}
-      <View style={styles.daysHeader}>
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-          <Text key={day} style={styles.dayHeaderText}>{day}</Text>
-        ))}
-      </View>
-      
-      {/* Calendar Grid */}
-      <ScrollView style={styles.calendarContainer} showsVerticalScrollIndicator={false}>
-        <View style={styles.calendarGrid}>
-          {calendarDays.map((day, index) => {
-            const entry = getEntryForDay(day);
-            const hasEntry = !!entry;
-            const rating = entry?.rating || 0;
-            
-            return (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.dayCell,
-                  !isCurrentMonth(day) && styles.outsideMonth,
-                  isToday(day) && styles.today,
-                  hasEntry && styles.hasEntry,
-                ]}
-                onPress={() => handleDayPress(day)}
-              >
-                <Text style={[
-                  styles.dayNumber,
-                  !isCurrentMonth(day) && styles.outsideMonthText,
-                  isToday(day) && styles.todayText,
-                ]}>
-                  {format(day, 'd')}
-                </Text>
-                
-                {hasEntry && (
-                  <View style={styles.entryIndicators}>
-                    <View style={[
-                      styles.ratingDot,
-                      { backgroundColor: getRatingColor(rating) }
-                    ]} />
-                    {entry.thoughts && (
-                      <Edit3 size={8} color={COLORS.neutral[500]} />
-                    )}
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+      {/* Table Container */}
+      <ScrollView style={styles.tableContainer} showsVerticalScrollIndicator={false}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.table}>
+            {renderTableHeader()}
+            {calendarDays.map((day, index) => renderTableRow(day, index))}
+          </View>
+        </ScrollView>
       </ScrollView>
       
       {/* Entry Detail Modal */}
@@ -530,6 +649,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.neutral[200],
+    backgroundColor: COLORS.white,
   },
   navButton: {
     padding: 8,
@@ -544,68 +664,156 @@ const styles = StyleSheet.create({
   settingsButton: {
     padding: 8,
   },
-  daysHeader: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.neutral[200],
-  },
-  dayHeaderText: {
+  tableContainer: {
     flex: 1,
-    textAlign: 'center',
-    fontSize: 12,
-    fontFamily: 'Inter-Medium',
-    color: COLORS.neutral[600],
-  },
-  calendarContainer: {
-    flex: 1,
-  },
-  calendarGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 20,
-  },
-  dayCell: {
-    width: '14.28%',
-    aspectRatio: 1,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: COLORS.neutral[200],
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  outsideMonth: {
     backgroundColor: COLORS.neutral[50],
   },
-  today: {
-    backgroundColor: COLORS.primary[50],
-    borderColor: COLORS.primary[300],
+  table: {
+    minWidth: 800,
   },
-  hasEntry: {
-    backgroundColor: COLORS.success[50],
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.neutral[100],
+    borderBottomWidth: 2,
+    borderBottomColor: COLORS.neutral[300],
+    paddingVertical: 12,
+  },
+  headerCell: {
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: COLORS.neutral[200],
+  },
+  headerText: {
+    fontSize: 12,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.neutral[700],
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.neutral[200],
+    minHeight: 60,
+  },
+  outsideMonthRow: {
+    backgroundColor: COLORS.neutral[50],
+  },
+  todayRow: {
+    backgroundColor: COLORS.primary[50],
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.primary[500],
+  },
+  hasDataRow: {
+    backgroundColor: COLORS.white,
+  },
+  cell: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: COLORS.neutral[200],
+  },
+  dateColumn: {
+    width: 80,
+  },
+  dataColumn: {
+    width: 80,
+  },
+  notesColumn: {
+    width: 150,
+  },
+  dateContainer: {
+    alignItems: 'center',
   },
   dayNumber: {
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
+    fontSize: 18,
+    fontFamily: 'Inter-Bold',
     color: COLORS.neutral[800],
+  },
+  dayName: {
+    fontSize: 10,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.neutral[500],
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 2,
   },
   outsideMonthText: {
     color: COLORS.neutral[400],
   },
   todayText: {
     color: COLORS.primary[700],
-    fontFamily: 'Inter-Bold',
   },
-  entryIndicators: {
-    flexDirection: 'row',
+  ratingContainer: {
+    alignItems: 'center',
+  },
+  ratingBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 40,
+    alignItems: 'center',
+  },
+  ratingText: {
+    fontSize: 11,
+    fontFamily: 'Inter-Bold',
+    color: COLORS.white,
+  },
+  sleepContainer: {
     alignItems: 'center',
     gap: 4,
   },
-  ratingDot: {
+  sleepHours: {
+    fontSize: 12,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.neutral[700],
+  },
+  qualityDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  goalsContainer: {
+    alignItems: 'center',
+  },
+  goalsCount: {
+    fontSize: 14,
+    fontFamily: 'Inter-Bold',
+    color: COLORS.primary[600],
+  },
+  goalsLabel: {
+    fontSize: 10,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[500],
+  },
+  workoutContainer: {
+    alignItems: 'center',
+  },
+  workoutDuration: {
+    fontSize: 12,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.accent[600],
+  },
+  notesText: {
+    fontSize: 11,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[600],
+    lineHeight: 14,
+  },
+  customFieldText: {
+    fontSize: 11,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[700],
+    textAlign: 'center',
+  },
+  emptyCell: {
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[400],
+    textAlign: 'center',
   },
   modalContainer: {
     flex: 1,
@@ -681,10 +889,6 @@ const styles = StyleSheet.create({
     borderColor: COLORS.neutral[200],
     width: 80,
   },
-  sleepContainer: {
-    flexDirection: 'row',
-    gap: 16,
-  },
   sleepField: {
     flex: 1,
   },
@@ -718,11 +922,6 @@ const styles = StyleSheet.create({
   },
   durationField: {
     marginTop: 8,
-  },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
   },
   ratingInput: {
     width: 60,
