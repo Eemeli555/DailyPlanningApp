@@ -2,7 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
-import { Plus, Calendar, CheckCircle2 } from 'lucide-react-native';
+import { Plus, Calendar, CircleCheck as CheckCircle2 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 
