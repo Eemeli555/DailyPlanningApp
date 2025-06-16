@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { format, set, isWithinInterval } from 'date-fns';
+import { format, set, isWithinInterval, isBefore, isAfter } from 'date-fns';
 import { COLORS } from '@/constants/theme';
 import { Goal } from '@/types';
 
@@ -9,14 +9,14 @@ interface DailyScheduleOverviewProps {
   date?: Date;
 }
 
-// Generate time slots from 6 AM to 10 PM (16 hours)
+// Generate time slots from 6 AM to 10 PM (16 hours) in 30-minute intervals
 const TIME_SLOTS = Array.from({ length: 32 }, (_, i) => {
   const hour = Math.floor(i / 2) + 6;
   const minutes = (i % 2) * 30;
   return { hour, minutes };
 });
 
-// Color palette for time slots (similar to the printable schedule)
+// Color palette for time slots
 const TIME_COLORS = [
   '#FF4444', // Red
   '#FF8800', // Orange
@@ -36,30 +36,91 @@ const TIME_COLORS = [
   '#66AA66', // Medium Green
 ];
 
+interface TimeBlock {
+  startTime: Date;
+  endTime: Date;
+  activity: string;
+  isCompleted: boolean;
+  colorIndex: number;
+}
+
 const DailyScheduleOverview = ({ goals, date = new Date() }: DailyScheduleOverviewProps) => {
-  const getScheduledGoalForTimeSlot = (slot: { hour: number; minutes: number }) => {
-    const slotTime = set(date, { 
-      hours: slot.hour, 
-      minutes: slot.minutes 
+  // Create time blocks by merging consecutive slots with the same activity
+  const createTimeBlocks = (): TimeBlock[] => {
+    const blocks: TimeBlock[] = [];
+    let currentBlock: TimeBlock | null = null;
+    
+    TIME_SLOTS.forEach((slot, index) => {
+      const slotTime = set(date, { 
+        hours: slot.hour, 
+        minutes: slot.minutes 
+      });
+      
+      // Find scheduled goal for this time slot
+      const scheduledGoal = goals.find(goal => {
+        if (!goal.scheduledTime) return false;
+        
+        const startTime = new Date(goal.scheduledTime.start);
+        const endTime = new Date(goal.scheduledTime.end);
+        
+        return isWithinInterval(slotTime, { start: startTime, end: endTime });
+      });
+      
+      const activity = scheduledGoal ? scheduledGoal.title : 'Free Time';
+      const isCompleted = scheduledGoal?.completed || false;
+      
+      // If this is the same activity as the current block, extend the current block
+      if (currentBlock && 
+          currentBlock.activity === activity && 
+          currentBlock.isCompleted === isCompleted) {
+        // Extend the current block
+        currentBlock.endTime = set(date, { 
+          hours: slot.hour, 
+          minutes: slot.minutes + 30 
+        });
+      } else {
+        // Start a new block
+        if (currentBlock) {
+          blocks.push(currentBlock);
+        }
+        
+        currentBlock = {
+          startTime: slotTime,
+          endTime: set(date, { 
+            hours: slot.hour, 
+            minutes: slot.minutes + 30 
+          }),
+          activity,
+          isCompleted,
+          colorIndex: blocks.length % TIME_COLORS.length,
+        };
+      }
     });
     
-    return goals.find(goal => {
-      if (!goal.scheduledTime) return false;
-      
-      const startTime = new Date(goal.scheduledTime.start);
-      const endTime = new Date(goal.scheduledTime.end);
-      
-      return isWithinInterval(slotTime, { start: startTime, end: endTime });
-    });
+    // Add the last block
+    if (currentBlock) {
+      blocks.push(currentBlock);
+    }
+    
+    return blocks;
   };
 
-  const formatTime = (slot: { hour: number; minutes: number }) => {
-    const time = set(new Date(), { hours: slot.hour, minutes: slot.minutes });
-    return format(time, 'h:mm');
+  const timeBlocks = createTimeBlocks();
+
+  const formatTimeRange = (startTime: Date, endTime: Date) => {
+    const start = format(startTime, 'H:mm');
+    const end = format(endTime, 'H:mm');
+    return `${start} - ${end}`;
   };
 
   const getColorForIndex = (index: number) => {
     return TIME_COLORS[index % TIME_COLORS.length];
+  };
+
+  const calculateBlockHeight = (startTime: Date, endTime: Date) => {
+    const durationMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60);
+    // Base height of 44px for 30 minutes, scale proportionally
+    return Math.max(44, (durationMinutes / 30) * 44);
   };
 
   return (
@@ -73,40 +134,42 @@ const DailyScheduleOverview = ({ goals, date = new Date() }: DailyScheduleOvervi
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scheduleContent}
       >
-        {TIME_SLOTS.map((slot, index) => {
-          const scheduledGoal = getScheduledGoalForTimeSlot(slot);
-          const activity = scheduledGoal ? scheduledGoal.title : 'Free Time';
-          const isCompleted = scheduledGoal?.completed || false;
+        {timeBlocks.map((block, index) => {
+          const blockHeight = calculateBlockHeight(block.startTime, block.endTime);
           
           return (
-            <View key={`${slot.hour}-${slot.minutes}`} style={styles.timeSlotRow}>
+            <View key={index} style={[styles.timeSlotRow, { height: blockHeight }]}>
               <View style={[
                 styles.timeBlock,
-                { backgroundColor: getColorForIndex(index) }
+                { 
+                  backgroundColor: getColorForIndex(block.colorIndex),
+                  height: blockHeight 
+                }
               ]}>
                 <Text style={styles.timeText}>
-                  {formatTime(slot)}
+                  {formatTimeRange(block.startTime, block.endTime)}
                 </Text>
               </View>
               
               <View style={[
                 styles.activityBlock,
-                isCompleted && styles.completedActivity
+                { height: blockHeight },
+                block.isCompleted && styles.completedActivity
               ]}>
                 <Text style={[
                   styles.activityText,
-                  isCompleted && styles.completedActivityText
+                  block.isCompleted && styles.completedActivityText
                 ]}>
-                  {activity}
+                  {block.activity}
                 </Text>
-                {isCompleted && (
+                {block.isCompleted && (
                   <View style={styles.checkmark}>
                     <Text style={styles.checkmarkText}>✓</Text>
                   </View>
                 )}
               </View>
               
-              <View style={styles.notesBlock} />
+              <View style={[styles.notesBlock, { height: blockHeight }]} />
             </View>
           );
         })}
@@ -153,24 +216,26 @@ const styles = StyleSheet.create({
   },
   timeSlotRow: {
     flexDirection: 'row',
-    height: 44,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.neutral[200],
   },
   timeBlock: {
-    width: 80,
+    width: 100,
     justifyContent: 'center',
     alignItems: 'center',
     borderRightWidth: 2,
     borderRightColor: COLORS.white,
+    paddingVertical: 8,
   },
   timeText: {
-    fontSize: 14,
+    fontSize: 12,
     fontFamily: 'Inter-Bold',
     color: COLORS.white,
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+    textAlign: 'center',
+    lineHeight: 16,
   },
   activityBlock: {
     flex: 1,
