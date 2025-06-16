@@ -14,6 +14,7 @@ import GoalItem from '@/components/GoalItem';
 import ProgressBar from '@/components/ProgressBar';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import DailyScheduleOverview from '@/components/DailyScheduleOverview';
+import ScheduleGoalModal from '@/components/ScheduleGoalModal';
 import { getCompletionStatus } from '@/utils/helpers';
 
 export default function TodayScreen() {
@@ -26,12 +27,32 @@ export default function TodayScreen() {
     completeGoal, 
     uncompleteGoal,
     setTimerForGoal,
+    updateGoalSchedule,
     quoteOfTheDay
   } = useContext(AppContext);
+  
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [selectedGoalForScheduling, setSelectedGoalForScheduling] = useState<Goal | null>(null);
   
   const today = new Date();
   const todayFormatted = format(today, 'EEEE, MMMM d');
   const { label, color } = getCompletionStatus(progressToday);
+
+  const handleScheduleGoal = (goal: Goal) => {
+    setSelectedGoalForScheduling(goal);
+    setShowScheduleModal(true);
+  };
+
+  const handleScheduleConfirm = (goalId: string, schedule: { start: string; end: string }) => {
+    updateGoalSchedule(goalId, schedule);
+    setShowScheduleModal(false);
+    setSelectedGoalForScheduling(null);
+  };
+
+  const handleEditSchedule = (goal: Goal) => {
+    setSelectedGoalForScheduling(goal);
+    setShowScheduleModal(true);
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -81,7 +102,7 @@ export default function TodayScreen() {
           <View style={styles.unscheduledSection}>
             <Text style={styles.sectionTitle}>Unscheduled Goals</Text>
             <Text style={styles.sectionSubtitle}>
-              Tap to complete or schedule these goals
+              Tap the calendar icon to schedule or complete these goals
             </Text>
             
             <View style={styles.unscheduledGoalsContainer}>
@@ -101,10 +122,52 @@ export default function TodayScreen() {
                       }
                     }}
                     onSetTimer={() => setTimerForGoal(goal.id)}
+                    onSchedule={() => handleScheduleGoal(goal)}
                     showTimer
+                    showSchedule
                   />
                 </Animated.View>
               ))}
+            </View>
+          </View>
+        )}
+
+        {/* Scheduled Goals Section */}
+        {todaysGoals.filter(goal => goal.scheduledTime).length > 0 && (
+          <View style={styles.scheduledSection}>
+            <Text style={styles.sectionTitle}>Scheduled Goals</Text>
+            <Text style={styles.sectionSubtitle}>
+              Your scheduled activities for today
+            </Text>
+            
+            <View style={styles.scheduledGoalsContainer}>
+              {todaysGoals
+                .filter(goal => goal.scheduledTime)
+                .sort((a, b) => {
+                  if (!a.scheduledTime || !b.scheduledTime) return 0;
+                  return new Date(a.scheduledTime.start).getTime() - new Date(b.scheduledTime.start).getTime();
+                })
+                .map((goal, index) => (
+                  <Animated.View 
+                    key={goal.id}
+                    entering={FadeInUp.delay(index * 100).springify()}
+                    style={styles.scheduledGoal}
+                  >
+                    <GoalItem 
+                      goal={goal}
+                      onToggleComplete={(goalId) => {
+                        if (goal.completed) {
+                          uncompleteGoal(goalId);
+                        } else {
+                          completeGoal(goalId);
+                        }
+                      }}
+                      onEditSchedule={() => handleEditSchedule(goal)}
+                      showTimer={false}
+                      showSchedule={false}
+                    />
+                  </Animated.View>
+                ))}
             </View>
           </View>
         )}
@@ -150,6 +213,17 @@ export default function TodayScreen() {
       <FloatingActionButton 
         icon={<Plus size={24} color={COLORS.white} />}
         onPress={() => router.push('/modals/add-goal')}
+      />
+
+      <ScheduleGoalModal
+        visible={showScheduleModal}
+        goal={selectedGoalForScheduling}
+        onClose={() => {
+          setShowScheduleModal(false);
+          setSelectedGoalForScheduling(null);
+        }}
+        onSchedule={handleScheduleConfirm}
+        selectedDate={today}
       />
     </View>
   );
@@ -258,6 +332,10 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginTop: 16,
   },
+  scheduledSection: {
+    marginHorizontal: 20,
+    marginTop: 24,
+  },
   sectionTitle: {
     fontSize: 20,
     fontFamily: 'Inter-Bold',
@@ -283,7 +361,23 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  scheduledGoalsContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    paddingVertical: 8,
+    shadowColor: COLORS.neutral[900],
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
   unscheduledGoal: {
+    paddingHorizontal: 16,
+  },
+  scheduledGoal: {
     paddingHorizontal: 16,
   },
   statsSection: {

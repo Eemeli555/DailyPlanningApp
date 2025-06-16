@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { COLORS } from '@/constants/theme';
 import { Goal } from '@/types';
 import Checkbox from './Checkbox';
-import { Clock, Edit } from 'lucide-react-native';
+import { Clock, Edit, Calendar } from 'lucide-react-native';
 import { format } from 'date-fns';
 
 interface GoalItemProps {
@@ -11,8 +11,10 @@ interface GoalItemProps {
   onToggleComplete?: (goalId: string) => void;
   onSetTimer?: () => void;
   onEditSchedule?: () => void;
+  onSchedule?: () => void;
   disabled?: boolean;
   showTimer?: boolean;
+  showSchedule?: boolean;
 }
 
 const GoalItem = ({ 
@@ -20,8 +22,10 @@ const GoalItem = ({
   onToggleComplete, 
   onSetTimer,
   onEditSchedule,
+  onSchedule,
   disabled = false,
   showTimer = false,
+  showSchedule = true,
 }: GoalItemProps) => {
   return (
     <View style={styles.container}>
@@ -55,19 +59,17 @@ const GoalItem = ({
         ) : null}
         
         {goal.scheduledTime && (
-          <View style={styles.scheduleInfo}>
+          <TouchableOpacity
+            style={styles.scheduleInfo}
+            onPress={onEditSchedule}
+            disabled={disabled}
+          >
             <Text style={styles.scheduleText}>
               {format(new Date(goal.scheduledTime.start), 'HH:mm')} - 
               {format(new Date(goal.scheduledTime.end), 'HH:mm')}
             </Text>
-            <TouchableOpacity
-              style={styles.editButton}
-              onPress={onEditSchedule}
-              disabled={disabled}
-            >
-              <Edit size={14} color={COLORS.primary[600]} />
-            </TouchableOpacity>
-          </View>
+            <Edit size={14} color={COLORS.primary[600]} />
+          </TouchableOpacity>
         )}
         
         {goal.isAutomatic && (
@@ -79,19 +81,34 @@ const GoalItem = ({
         )}
       </View>
       
-      {showTimer && onSetTimer && !goal.scheduledTime && (
-        <TouchableOpacity 
-          style={styles.timerButton} 
-          onPress={onSetTimer}
-          disabled={disabled}
-        >
-          <Clock 
-            size={18} 
-            color={goal.hasTimer ? COLORS.primary[600] : COLORS.neutral[400]} 
-            strokeWidth={goal.hasTimer ? 2.5 : 2}
-          />
-        </TouchableOpacity>
-      )}
+      <View style={styles.actionButtons}>
+        {showSchedule && !goal.scheduledTime && (
+          <TouchableOpacity 
+            style={styles.actionButton} 
+            onPress={onSchedule}
+            disabled={disabled}
+          >
+            <Calendar 
+              size={18} 
+              color={COLORS.primary[600]} 
+            />
+          </TouchableOpacity>
+        )}
+        
+        {showTimer && onSetTimer && !goal.scheduledTime && (
+          <TouchableOpacity 
+            style={styles.actionButton} 
+            onPress={onSetTimer}
+            disabled={disabled}
+          >
+            <Clock 
+              size={18} 
+              color={goal.hasTimer ? COLORS.primary[600] : COLORS.neutral[400]} 
+              strokeWidth={goal.hasTimer ? 2.5 : 2}
+            />
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 };
@@ -134,15 +151,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 4,
+    backgroundColor: COLORS.primary[50],
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
   },
   scheduleText: {
     fontSize: 12,
     fontFamily: 'Inter-Medium',
     color: COLORS.primary[600],
-  },
-  editButton: {
-    padding: 4,
-    marginLeft: 4,
+    marginRight: 4,
   },
   badgeContainer: {
     flexDirection: 'row',
@@ -159,12 +178,18 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
     color: COLORS.primary[700],
   },
-  timerButton: {
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionButton: {
     width: 40,
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 4,
+    borderRadius: 20,
+    backgroundColor: COLORS.neutral[100],
   },
 });
 
