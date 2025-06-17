@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { format, set, isWithinInterval, isBefore, isAfter } from 'date-fns';
+import { Clock, CheckCircle } from 'lucide-react-native';
 import { COLORS } from '@/constants/theme';
 import { Goal } from '@/types';
 
@@ -9,171 +10,179 @@ interface DailyScheduleOverviewProps {
   date?: Date;
 }
 
-// Generate time slots from 6 AM to 10 PM (16 hours) in 30-minute intervals
-const TIME_SLOTS = Array.from({ length: 32 }, (_, i) => {
-  const hour = Math.floor(i / 2) + 6;
-  const minutes = (i % 2) * 30;
-  return { hour, minutes };
+// Generate time slots from 6 AM to 10 PM (16 hours) in 1-hour intervals for mobile
+const TIME_SLOTS = Array.from({ length: 16 }, (_, i) => {
+  const hour = i + 6;
+  return { hour, minutes: 0 };
 });
-
-// Color palette for time slots
-const TIME_COLORS = [
-  '#FF4444', // Red
-  '#FF8800', // Orange
-  '#FFAA00', // Yellow-Orange
-  '#44AA44', // Green
-  '#44AAAA', // Teal
-  '#4488FF', // Blue
-  '#FF8888', // Light Red
-  '#FF4400', // Red-Orange
-  '#FFCC00', // Yellow
-  '#88AA44', // Light Green
-  '#44CCCC', // Light Teal
-  '#8888FF', // Light Blue
-  '#FF6666', // Pink-Red
-  '#FFAA44', // Orange-Yellow
-  '#CCCC44', // Olive
-  '#66AA66', // Medium Green
-];
 
 interface TimeBlock {
   startTime: Date;
   endTime: Date;
   activity: string;
   isCompleted: boolean;
-  colorIndex: number;
+  goal?: Goal;
 }
 
 const DailyScheduleOverview = ({ goals, date = new Date() }: DailyScheduleOverviewProps) => {
-  // Create time blocks by merging consecutive slots with the same activity
+  // Create simplified time blocks for mobile view
   const createTimeBlocks = (): TimeBlock[] => {
     const blocks: TimeBlock[] = [];
-    let currentBlock: TimeBlock | null = null;
     
-    TIME_SLOTS.forEach((slot, index) => {
+    TIME_SLOTS.forEach((slot) => {
       const slotTime = set(date, { 
         hours: slot.hour, 
         minutes: slot.minutes 
       });
       
-      // Find scheduled goal for this time slot
+      const nextSlotTime = set(date, { 
+        hours: slot.hour + 1, 
+        minutes: slot.minutes 
+      });
+      
+      // Find scheduled goal for this hour
       const scheduledGoal = goals.find(goal => {
         if (!goal.scheduledTime) return false;
         
         const startTime = new Date(goal.scheduledTime.start);
         const endTime = new Date(goal.scheduledTime.end);
         
-        return isWithinInterval(slotTime, { start: startTime, end: endTime });
+        return isWithinInterval(slotTime, { start: startTime, end: endTime }) ||
+               (startTime >= slotTime && startTime < nextSlotTime);
       });
       
-      const activity = scheduledGoal ? scheduledGoal.title : 'Free Time';
-      const isCompleted = scheduledGoal?.completed || false;
-      
-      // If this is the same activity as the current block, extend the current block
-      if (currentBlock && 
-          currentBlock.activity === activity && 
-          currentBlock.isCompleted === isCompleted) {
-        // Extend the current block
-        currentBlock.endTime = set(date, { 
-          hours: slot.hour, 
-          minutes: slot.minutes + 30 
-        });
-      } else {
-        // Start a new block
-        if (currentBlock) {
-          blocks.push(currentBlock);
-        }
-        
-        currentBlock = {
+      if (scheduledGoal) {
+        blocks.push({
           startTime: slotTime,
-          endTime: set(date, { 
-            hours: slot.hour, 
-            minutes: slot.minutes + 30 
-          }),
-          activity,
-          isCompleted,
-          colorIndex: blocks.length % TIME_COLORS.length,
-        };
+          endTime: nextSlotTime,
+          activity: scheduledGoal.title,
+          isCompleted: scheduledGoal.completed,
+          goal: scheduledGoal,
+        });
       }
     });
-    
-    // Add the last block
-    if (currentBlock) {
-      blocks.push(currentBlock);
-    }
     
     return blocks;
   };
 
   const timeBlocks = createTimeBlocks();
+  const unscheduledGoals = goals.filter(goal => !goal.scheduledTime);
+  const completedCount = goals.filter(goal => goal.completed).length;
+  const totalGoals = goals.length;
 
-  const formatTimeRange = (startTime: Date, endTime: Date) => {
-    const start = format(startTime, 'H:mm');
-    const end = format(endTime, 'H:mm');
-    return `${start} - ${end}`;
+  const formatTime = (time: Date) => {
+    return format(time, 'HH:mm');
   };
 
-  const getColorForIndex = (index: number) => {
-    return TIME_COLORS[index % TIME_COLORS.length];
+  const getNextScheduledGoal = () => {
+    const now = new Date();
+    const upcomingGoals = goals
+      .filter(goal => goal.scheduledTime && !goal.completed)
+      .filter(goal => new Date(goal.scheduledTime!.start) > now)
+      .sort((a, b) => 
+        new Date(a.scheduledTime!.start).getTime() - new Date(b.scheduledTime!.start).getTime()
+      );
+    
+    return upcomingGoals[0];
   };
 
-  const calculateBlockHeight = (startTime: Date, endTime: Date) => {
-    const durationMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60);
-    // Base height of 44px for 30 minutes, scale proportionally
-    return Math.max(44, (durationMinutes / 30) * 44);
-  };
+  const nextGoal = getNextScheduledGoal();
 
   return (
     <View style={styles.container}>
+      {/* Compact Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>DAILY ROUTINE</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.title}>TODAY'S PLAN</Text>
+          <Text style={styles.subtitle}>
+            {completedCount}/{totalGoals} completed
+          </Text>
+        </View>
+        <View style={styles.progressIndicator}>
+          <Text style={styles.progressText}>
+            {Math.round((completedCount / Math.max(totalGoals, 1)) * 100)}%
+          </Text>
+        </View>
       </View>
-      
-      <ScrollView 
-        style={styles.scheduleContainer}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scheduleContent}
-      >
-        {timeBlocks.map((block, index) => {
-          const blockHeight = calculateBlockHeight(block.startTime, block.endTime);
-          
-          return (
-            <View key={index} style={[styles.timeSlotRow, { height: blockHeight }]}>
-              <View style={[
-                styles.timeBlock,
-                { 
-                  backgroundColor: getColorForIndex(block.colorIndex),
-                  height: blockHeight 
-                }
-              ]}>
-                <Text style={styles.timeText}>
-                  {formatTimeRange(block.startTime, block.endTime)}
+
+      {/* Next Up Section */}
+      {nextGoal && (
+        <View style={styles.nextUpSection}>
+          <View style={styles.nextUpHeader}>
+            <Clock size={16} color={COLORS.primary[600]} />
+            <Text style={styles.nextUpTitle}>Next Up</Text>
+          </View>
+          <Text style={styles.nextUpGoal}>{nextGoal.title}</Text>
+          <Text style={styles.nextUpTime}>
+            {format(new Date(nextGoal.scheduledTime!.start), 'HH:mm')} - 
+            {format(new Date(nextGoal.scheduledTime!.end), 'HH:mm')}
+          </Text>
+        </View>
+      )}
+
+      {/* Compact Schedule Timeline */}
+      {timeBlocks.length > 0 && (
+        <View style={styles.timelineSection}>
+          <Text style={styles.sectionTitle}>Scheduled</Text>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.timelineContainer}
+          >
+            {timeBlocks.map((block, index) => (
+              <View key={index} style={styles.timelineItem}>
+                <Text style={styles.timelineTime}>
+                  {formatTime(block.startTime)}
                 </Text>
-              </View>
-              
-              <View style={[
-                styles.activityBlock,
-                { height: blockHeight },
-                block.isCompleted && styles.completedActivity
-              ]}>
-                <Text style={[
-                  styles.activityText,
-                  block.isCompleted && styles.completedActivityText
+                <View style={[
+                  styles.timelineBlock,
+                  block.isCompleted && styles.completedBlock
                 ]}>
-                  {block.activity}
-                </Text>
-                {block.isCompleted && (
-                  <View style={styles.checkmark}>
-                    <Text style={styles.checkmarkText}>✓</Text>
-                  </View>
-                )}
+                  {block.isCompleted && (
+                    <CheckCircle size={12} color={COLORS.white} />
+                  )}
+                  <Text style={[
+                    styles.timelineActivity,
+                    block.isCompleted && styles.completedActivity
+                  ]} numberOfLines={2}>
+                    {block.activity}
+                  </Text>
+                </View>
               </View>
-              
-              <View style={[styles.notesBlock, { height: blockHeight }]} />
-            </View>
-          );
-        })}
-      </ScrollView>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Unscheduled Goals - Compact List */}
+      {unscheduledGoals.length > 0 && (
+        <View style={styles.unscheduledSection}>
+          <Text style={styles.sectionTitle}>
+            Unscheduled ({unscheduledGoals.length})
+          </Text>
+          <View style={styles.unscheduledList}>
+            {unscheduledGoals.slice(0, 3).map((goal, index) => (
+              <View key={goal.id} style={styles.unscheduledItem}>
+                <View style={[
+                  styles.unscheduledDot,
+                  goal.completed && styles.completedDot
+                ]} />
+                <Text style={[
+                  styles.unscheduledText,
+                  goal.completed && styles.completedText
+                ]} numberOfLines={1}>
+                  {goal.title}
+                </Text>
+              </View>
+            ))}
+            {unscheduledGoals.length > 3 && (
+              <Text style={styles.moreText}>
+                +{unscheduledGoals.length - 3} more
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
     </View>
   );
 };
@@ -183,7 +192,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderRadius: 16,
     marginHorizontal: 20,
-    marginVertical: 16,
+    marginVertical: 12,
     shadowColor: COLORS.neutral[900],
     shadowOffset: {
       width: 0,
@@ -195,90 +204,156 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   header: {
-    backgroundColor: COLORS.white,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 2,
-    borderBottomColor: COLORS.neutral[200],
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.neutral[100],
+  },
+  headerLeft: {
+    flex: 1,
   },
   title: {
-    fontSize: 24,
+    fontSize: 16,
     fontFamily: 'Inter-Bold',
     color: COLORS.neutral[800],
-    textAlign: 'center',
-    letterSpacing: 2,
+    letterSpacing: 1,
   },
-  scheduleContainer: {
-    maxHeight: 400,
-  },
-  scheduleContent: {
-    paddingVertical: 8,
-  },
-  timeSlotRow: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.neutral[200],
-  },
-  timeBlock: {
-    width: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRightWidth: 2,
-    borderRightColor: COLORS.white,
-    paddingVertical: 8,
-  },
-  timeText: {
+  subtitle: {
     fontSize: 12,
-    fontFamily: 'Inter-Bold',
-    color: COLORS.white,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-    textAlign: 'center',
-    lineHeight: 16,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[500],
+    marginTop: 2,
   },
-  activityBlock: {
-    flex: 1,
-    justifyContent: 'center',
+  progressIndicator: {
+    backgroundColor: COLORS.primary[100],
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  progressText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Bold',
+    color: COLORS.primary[700],
+  },
+  nextUpSection: {
     paddingHorizontal: 16,
-    backgroundColor: COLORS.white,
-    borderRightWidth: 1,
-    borderRightColor: COLORS.neutral[200],
+    paddingVertical: 12,
+    backgroundColor: COLORS.primary[50],
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.neutral[100],
+  },
+  nextUpHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 4,
+  },
+  nextUpTitle: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.primary[600],
+    marginLeft: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  nextUpGoal: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.primary[800],
+    marginBottom: 2,
+  },
+  nextUpTime: {
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.primary[600],
+  },
+  timelineSection: {
+    paddingVertical: 12,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.neutral[700],
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  timelineContainer: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  timelineItem: {
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  timelineTime: {
+    fontSize: 10,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.neutral[500],
+    marginBottom: 4,
+  },
+  timelineBlock: {
+    backgroundColor: COLORS.primary[100],
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    minHeight: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+  },
+  completedBlock: {
+    backgroundColor: COLORS.success[500],
+  },
+  timelineActivity: {
+    fontSize: 10,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.primary[700],
+    textAlign: 'center',
+    lineHeight: 12,
   },
   completedActivity: {
-    backgroundColor: COLORS.success[50],
+    color: COLORS.white,
   },
-  activityText: {
-    fontSize: 16,
-    fontFamily: 'Inter-Medium',
-    color: COLORS.neutral[800],
+  unscheduledSection: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  unscheduledList: {
+    gap: 6,
+  },
+  unscheduledItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  unscheduledDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.neutral[400],
+    marginRight: 8,
+  },
+  completedDot: {
+    backgroundColor: COLORS.success[500],
+  },
+  unscheduledText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[700],
     flex: 1,
   },
-  completedActivityText: {
-    color: COLORS.success[700],
+  completedText: {
     textDecorationLine: 'line-through',
+    color: COLORS.neutral[500],
   },
-  checkmark: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: COLORS.success[500],
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 8,
-  },
-  checkmarkText: {
-    color: COLORS.white,
-    fontSize: 12,
-    fontFamily: 'Inter-Bold',
-  },
-  notesBlock: {
-    width: 60,
-    backgroundColor: COLORS.neutral[50],
-    borderLeftWidth: 1,
-    borderLeftColor: COLORS.neutral[200],
+  moreText: {
+    fontSize: 11,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[500],
+    fontStyle: 'italic',
+    marginLeft: 14,
+    marginTop: 2,
   },
 });
 

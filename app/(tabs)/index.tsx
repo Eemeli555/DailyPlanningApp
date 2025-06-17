@@ -2,7 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
-import { Plus, Calendar, CircleCheck as CheckCircle2 } from 'lucide-react-native';
+import { Plus, Calendar, CircleCheck as CheckCircle2, Clock } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 
@@ -54,6 +54,19 @@ export default function TodayScreen() {
     setShowScheduleModal(true);
   };
 
+  // Get current time for "happening now" indicator
+  const getCurrentActivity = () => {
+    const now = new Date();
+    return todaysGoals.find(goal => {
+      if (!goal.scheduledTime) return false;
+      const start = new Date(goal.scheduledTime.start);
+      const end = new Date(goal.scheduledTime.end);
+      return now >= start && now <= end;
+    });
+  };
+
+  const currentActivity = getCurrentActivity();
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -66,27 +79,31 @@ export default function TodayScreen() {
             style={styles.calendarButton}
             onPress={() => router.push('/calendar')}
           >
-            <Calendar size={24} color={COLORS.primary[600]} />
+            <Calendar size={20} color={COLORS.primary[600]} />
           </TouchableOpacity>
         </View>
         
-        <View style={styles.quoteContainer}>
-          <Text style={styles.quoteText}>"{quoteOfTheDay.text}"</Text>
-          <Text style={styles.quoteAuthor}>— {quoteOfTheDay.author}</Text>
-        </View>
-        
+        {/* Compact Progress Card */}
         <View style={styles.progressCard}>
           <View style={styles.progressHeader}>
-            <Text style={styles.progressTitle}>Daily Progress</Text>
+            <Text style={styles.progressTitle}>Progress</Text>
             <Text style={[styles.progressLabel, { color }]}>
-              {label}
+              {Math.round(progressToday * 100)}%
             </Text>
           </View>
-          <ProgressBar progress={progressToday} />
-          <Text style={styles.progressPercentage}>
-            {Math.round(progressToday * 100)}% Complete
-          </Text>
+          <ProgressBar progress={progressToday} height={6} />
         </View>
+
+        {/* Current Activity Indicator */}
+        {currentActivity && (
+          <View style={styles.currentActivityCard}>
+            <View style={styles.currentActivityHeader}>
+              <Clock size={14} color={COLORS.accent[600]} />
+              <Text style={styles.currentActivityLabel}>Happening Now</Text>
+            </View>
+            <Text style={styles.currentActivityTitle}>{currentActivity.title}</Text>
+          </View>
+        )}
       </View>
 
       <ScrollView 
@@ -94,22 +111,51 @@ export default function TodayScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Daily Schedule Overview */}
+        {/* Compact Daily Schedule Overview */}
         <DailyScheduleOverview goals={todaysGoals} date={today} />
         
-        {/* Unscheduled Goals Section */}
+        {/* Quick Actions */}
+        <View style={styles.quickActionsSection}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.quickActionsGrid}>
+            <TouchableOpacity 
+              style={styles.quickActionCard}
+              onPress={() => router.push('/modals/add-goal')}
+            >
+              <Plus size={20} color={COLORS.primary[600]} />
+              <Text style={styles.quickActionText}>Add Goal</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.quickActionCard}
+              onPress={() => router.push('/calendar')}
+            >
+              <Calendar size={20} color={COLORS.accent[600]} />
+              <Text style={styles.quickActionText}>Schedule</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.quickActionCard}
+              onPress={() => router.push('/(tabs)/stats')}
+            >
+              <CheckCircle2 size={20} color={COLORS.success[600]} />
+              <Text style={styles.quickActionText}>Progress</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Unscheduled Goals - Compact List */}
         {todaysGoals.filter(goal => !goal.scheduledTime).length > 0 && (
           <View style={styles.unscheduledSection}>
-            <Text style={styles.sectionTitle}>Unscheduled Goals</Text>
-            <Text style={styles.sectionSubtitle}>
-              Tap the calendar icon to schedule or complete these goals
+            <Text style={styles.sectionTitle}>
+              Unscheduled Goals ({todaysGoals.filter(goal => !goal.scheduledTime).length})
             </Text>
             
             <View style={styles.unscheduledGoalsContainer}>
               {todaysGoals.filter(goal => !goal.scheduledTime).map((goal, index) => (
                 <Animated.View 
                   key={goal.id}
-                  entering={FadeInUp.delay(index * 100).springify()}
+                  entering={FadeInUp.delay(index * 50).springify()}
                   style={styles.unscheduledGoal}
                 >
                   <GoalItem 
@@ -132,81 +178,10 @@ export default function TodayScreen() {
           </View>
         )}
 
-        {/* Scheduled Goals Section */}
-        {todaysGoals.filter(goal => goal.scheduledTime).length > 0 && (
-          <View style={styles.scheduledSection}>
-            <Text style={styles.sectionTitle}>Scheduled Goals</Text>
-            <Text style={styles.sectionSubtitle}>
-              Your scheduled activities for today
-            </Text>
-            
-            <View style={styles.scheduledGoalsContainer}>
-              {todaysGoals
-                .filter(goal => goal.scheduledTime)
-                .sort((a, b) => {
-                  if (!a.scheduledTime || !b.scheduledTime) return 0;
-                  return new Date(a.scheduledTime.start).getTime() - new Date(b.scheduledTime.start).getTime();
-                })
-                .map((goal, index) => (
-                  <Animated.View 
-                    key={goal.id}
-                    entering={FadeInUp.delay(index * 100).springify()}
-                    style={styles.scheduledGoal}
-                  >
-                    <GoalItem 
-                      goal={goal}
-                      onToggleComplete={(goalId) => {
-                        if (goal.completed) {
-                          uncompleteGoal(goalId);
-                        } else {
-                          completeGoal(goalId);
-                        }
-                      }}
-                      onEditSchedule={() => handleEditSchedule(goal)}
-                      showTimer={false}
-                      showSchedule={false}
-                    />
-                  </Animated.View>
-                ))}
-            </View>
-          </View>
-        )}
-        
-        {/* Quick Stats */}
-        <View style={styles.statsSection}>
-          <Text style={styles.sectionTitle}>Today's Summary</Text>
-          
-          <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
-              <View style={styles.statIcon}>
-                <CheckCircle2 size={24} color={COLORS.success[600]} />
-              </View>
-              <Text style={styles.statValue}>
-                {todaysGoals.filter(goal => goal.completed).length}
-              </Text>
-              <Text style={styles.statLabel}>Completed</Text>
-            </View>
-            
-            <View style={styles.statCard}>
-              <View style={styles.statIcon}>
-                <Calendar size={24} color={COLORS.primary[600]} />
-              </View>
-              <Text style={styles.statValue}>
-                {todaysGoals.filter(goal => goal.scheduledTime).length}
-              </Text>
-              <Text style={styles.statLabel}>Scheduled</Text>
-            </View>
-            
-            <View style={styles.statCard}>
-              <View style={styles.statIcon}>
-                <Plus size={24} color={COLORS.neutral[600]} />
-              </View>
-              <Text style={styles.statValue}>
-                {todaysGoals.length}
-              </Text>
-              <Text style={styles.statLabel}>Total Goals</Text>
-            </View>
-          </View>
+        {/* Quote of the Day - Compact */}
+        <View style={styles.quoteSection}>
+          <Text style={styles.quoteText}>"{quoteOfTheDay.text}"</Text>
+          <Text style={styles.quoteAuthor}>— {quoteOfTheDay.author}</Text>
         </View>
       </ScrollView>
       
@@ -237,10 +212,10 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 8,
+    paddingBottom: 12,
     backgroundColor: COLORS.white,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
     shadowColor: COLORS.neutral[900],
     shadowOffset: {
       width: 0,
@@ -254,6 +229,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    marginBottom: 12,
   },
   dateText: {
     fontSize: 14,
@@ -261,66 +237,61 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontFamily: 'Inter-Bold',
     color: COLORS.neutral[900],
-    marginTop: 4,
+    marginTop: 2,
   },
   calendarButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: COLORS.primary[50],
     justifyContent: 'center',
     alignItems: 'center',
   },
-  quoteContainer: {
-    marginTop: 16,
-    padding: 16,
-    backgroundColor: COLORS.primary[50],
-    borderRadius: 12,
-  },
-  quoteText: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: COLORS.primary[700],
-    fontStyle: 'italic',
-  },
-  quoteAuthor: {
-    fontSize: 12,
-    fontFamily: 'Inter-Medium',
-    color: COLORS.primary[600],
-    marginTop: 8,
-  },
   progressCard: {
-    marginTop: 16,
-    padding: 16,
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.neutral[200],
+    marginBottom: 8,
   },
   progressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   progressTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: 'Inter-SemiBold',
-    color: COLORS.neutral[800],
+    color: COLORS.neutral[700],
   },
   progressLabel: {
     fontSize: 14,
-    fontFamily: 'Inter-Medium',
+    fontFamily: 'Inter-Bold',
   },
-  progressPercentage: {
-    fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    color: COLORS.neutral[600],
-    marginTop: 8,
-    textAlign: 'right',
+  currentActivityCard: {
+    backgroundColor: COLORS.accent[50],
+    borderRadius: 8,
+    padding: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.accent[500],
+  },
+  currentActivityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  currentActivityLabel: {
+    fontSize: 11,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.accent[600],
+    marginLeft: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  currentActivityTitle: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.accent[800],
   },
   scrollContent: {
     flex: 1,
@@ -328,43 +299,51 @@ const styles = StyleSheet.create({
   content: {
     paddingBottom: 100,
   },
-  unscheduledSection: {
+  quickActionsSection: {
     marginHorizontal: 20,
-    marginTop: 16,
-  },
-  scheduledSection: {
-    marginHorizontal: 20,
-    marginTop: 24,
+    marginTop: 8,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontFamily: 'Inter-Bold',
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
     color: COLORS.neutral[800],
-    marginBottom: 4,
+    marginBottom: 12,
   },
-  sectionSubtitle: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: COLORS.neutral[500],
-    marginBottom: 16,
+  quickActionsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  unscheduledGoalsContainer: {
+  quickActionCard: {
+    flex: 1,
     backgroundColor: COLORS.white,
-    borderRadius: 16,
-    paddingVertical: 8,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
     shadowColor: COLORS.neutral[900],
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 1,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  scheduledGoalsContainer: {
+  quickActionText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.neutral[700],
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  unscheduledSection: {
+    marginHorizontal: 20,
+    marginTop: 20,
+  },
+  unscheduledGoalsContainer: {
     backgroundColor: COLORS.white,
-    borderRadius: 16,
-    paddingVertical: 8,
+    borderRadius: 12,
+    paddingVertical: 4,
     shadowColor: COLORS.neutral[900],
     shadowOffset: {
       width: 0,
@@ -375,48 +354,28 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   unscheduledGoal: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
   },
-  scheduledGoal: {
-    paddingHorizontal: 16,
-  },
-  statsSection: {
+  quoteSection: {
     marginHorizontal: 20,
-    marginTop: 24,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 12,
-  },
-  statCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
+    marginTop: 20,
     padding: 16,
-    width: '31%',
-    alignItems: 'center',
-    shadowColor: COLORS.neutral[900],
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    backgroundColor: COLORS.primary[50],
+    borderRadius: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.primary[500],
   },
-  statIcon: {
-    marginBottom: 8,
-  },
-  statValue: {
-    fontSize: 24,
-    fontFamily: 'Inter-Bold',
-    color: COLORS.neutral[800],
-  },
-  statLabel: {
-    fontSize: 12,
+  quoteText: {
+    fontSize: 13,
     fontFamily: 'Inter-Regular',
-    color: COLORS.neutral[600],
-    marginTop: 4,
-    textAlign: 'center',
+    color: COLORS.primary[700],
+    fontStyle: 'italic',
+    lineHeight: 18,
+  },
+  quoteAuthor: {
+    fontSize: 11,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.primary[600],
+    marginTop: 6,
   },
 });
