@@ -70,8 +70,18 @@ const DailyScheduleOverview = ({ goals, date = new Date() }: DailyScheduleOvervi
   const completedCount = goals.filter(goal => goal.completed).length;
   const totalGoals = goals.length;
 
-  const formatTime = (time: Date) => {
-    return format(time, 'HH:mm');
+  // Format time in compact format (e.g., "11" for 11:00, "11:30" for 11:30)
+  const formatTimeCompact = (time: Date) => {
+    const minutes = time.getMinutes();
+    const hours = time.getHours();
+    return minutes === 0 ? hours.toString() : format(time, 'H:mm');
+  };
+
+  // Format time range in compact format (e.g., "11-13" or "11:30-13:00")
+  const formatTimeRange = (start: Date, end: Date) => {
+    const startFormatted = formatTimeCompact(start);
+    const endFormatted = formatTimeCompact(end);
+    return `${startFormatted}-${endFormatted}`;
   };
 
   const getNextScheduledGoal = () => {
@@ -114,8 +124,10 @@ const DailyScheduleOverview = ({ goals, date = new Date() }: DailyScheduleOvervi
           </View>
           <Text style={styles.nextUpGoal}>{nextGoal.title}</Text>
           <Text style={styles.nextUpTime}>
-            {format(new Date(nextGoal.scheduledTime!.start), 'HH:mm')} - 
-            {format(new Date(nextGoal.scheduledTime!.end), 'HH:mm')}
+            {formatTimeRange(
+              new Date(nextGoal.scheduledTime!.start), 
+              new Date(nextGoal.scheduledTime!.end)
+            )}
           </Text>
         </View>
       )}
@@ -132,7 +144,13 @@ const DailyScheduleOverview = ({ goals, date = new Date() }: DailyScheduleOvervi
             {timeBlocks.map((block, index) => (
               <View key={index} style={styles.timelineItem}>
                 <Text style={styles.timelineTime}>
-                  {formatTime(block.startTime)}
+                  {block.goal?.scheduledTime ? 
+                    formatTimeRange(
+                      new Date(block.goal.scheduledTime.start),
+                      new Date(block.goal.scheduledTime.end)
+                    ) : 
+                    formatTimeCompact(block.startTime)
+                  }
                 </Text>
                 <View style={[
                   styles.timelineBlock,

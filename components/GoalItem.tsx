@@ -27,6 +27,20 @@ const GoalItem = ({
   showTimer = false,
   showSchedule = true,
 }: GoalItemProps) => {
+  // Format time in compact format (e.g., "11" for 11:00, "11:30" for 11:30)
+  const formatTimeCompact = (time: Date) => {
+    const minutes = time.getMinutes();
+    const hours = time.getHours();
+    return minutes === 0 ? hours.toString() : format(time, 'H:mm');
+  };
+
+  // Format time range in compact format (e.g., "11-13" or "11:30-13:00")
+  const formatTimeRange = (start: Date, end: Date) => {
+    const startFormatted = formatTimeCompact(start);
+    const endFormatted = formatTimeCompact(end);
+    return `${startFormatted}-${endFormatted}`;
+  };
+
   return (
     <View style={styles.container}>
       <TouchableOpacity
@@ -65,8 +79,10 @@ const GoalItem = ({
             disabled={disabled}
           >
             <Text style={styles.scheduleText}>
-              {format(new Date(goal.scheduledTime.start), 'HH:mm')} - 
-              {format(new Date(goal.scheduledTime.end), 'HH:mm')}
+              {formatTimeRange(
+                new Date(goal.scheduledTime.start),
+                new Date(goal.scheduledTime.end)
+              )}
             </Text>
             <Edit size={14} color={COLORS.primary[600]} />
           </TouchableOpacity>
