@@ -10,12 +10,6 @@ interface DailyScheduleOverviewProps {
   date?: Date;
 }
 
-// Generate time slots from 6 AM to 10 PM (16 hours) in 1-hour intervals for mobile
-const TIME_SLOTS = Array.from({ length: 16 }, (_, i) => {
-  const hour = i + 6;
-  return { hour, minutes: 0 };
-});
-
 interface TimeBlock {
   startTime: Date;
   endTime: Date;
@@ -25,44 +19,28 @@ interface TimeBlock {
 }
 
 const DailyScheduleOverview = ({ goals, date = new Date() }: DailyScheduleOverviewProps) => {
-  // Create simplified time blocks for mobile view
+  // Create time blocks from scheduled goals
   const createTimeBlocks = (): TimeBlock[] => {
     const blocks: TimeBlock[] = [];
     
-    TIME_SLOTS.forEach((slot) => {
-      const slotTime = set(date, { 
-        hours: slot.hour, 
-        minutes: slot.minutes 
-      });
-      
-      const nextSlotTime = set(date, { 
-        hours: slot.hour + 1, 
-        minutes: slot.minutes 
-      });
-      
-      // Find scheduled goal for this hour
-      const scheduledGoal = goals.find(goal => {
-        if (!goal.scheduledTime) return false;
-        
+    // Get all scheduled goals and create blocks for them
+    goals.forEach(goal => {
+      if (goal.scheduledTime) {
         const startTime = new Date(goal.scheduledTime.start);
         const endTime = new Date(goal.scheduledTime.end);
         
-        return isWithinInterval(slotTime, { start: startTime, end: endTime }) ||
-               (startTime >= slotTime && startTime < nextSlotTime);
-      });
-      
-      if (scheduledGoal) {
         blocks.push({
-          startTime: slotTime,
-          endTime: nextSlotTime,
-          activity: scheduledGoal.title,
-          isCompleted: scheduledGoal.completed,
-          goal: scheduledGoal,
+          startTime,
+          endTime,
+          activity: goal.title,
+          isCompleted: goal.completed,
+          goal,
         });
       }
     });
     
-    return blocks;
+    // Sort blocks by start time
+    return blocks.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
   };
 
   const timeBlocks = createTimeBlocks();
@@ -70,8 +48,17 @@ const DailyScheduleOverview = ({ goals, date = new Date() }: DailyScheduleOvervi
   const completedCount = goals.filter(goal => goal.completed).length;
   const totalGoals = goals.length;
 
-  const formatTime = (time: Date) => {
-    return format(time, 'HH:mm');
+  const formatTimeRange = (startTime: Date, endTime: Date) => {
+    const startHour = format(startTime, 'H');
+    const endHour = format(endTime, 'H');
+    const endMinutes = format(endTime, 'm');
+    
+    // If end time has minutes, show them
+    if (endMinutes !== '0') {
+      return `${startHour}-${format(endTime, 'H:mm')}`;
+    }
+    
+    return `${startHour}-${endHour}`;
   };
 
   const getNextScheduledGoal = () => {
@@ -114,8 +101,10 @@ const DailyScheduleOverview = ({ goals, date = new Date() }: DailyScheduleOvervi
           </View>
           <Text style={styles.nextUpGoal}>{nextGoal.title}</Text>
           <Text style={styles.nextUpTime}>
-            {format(new Date(nextGoal.scheduledTime!.start), 'HH:mm')} - 
-            {format(new Date(nextGoal.scheduledTime!.end), 'HH:mm')}
+            {formatTimeRange(
+              new Date(nextGoal.scheduledTime!.start), 
+              new Date(nextGoal.scheduledTime!.end)
+            )}
           </Text>
         </View>
       )}
@@ -132,7 +121,7 @@ const DailyScheduleOverview = ({ goals, date = new Date() }: DailyScheduleOvervi
             {timeBlocks.map((block, index) => (
               <View key={index} style={styles.timelineItem}>
                 <Text style={styles.timelineTime}>
-                  {formatTime(block.startTime)}
+                  {formatTimeRange(block.startTime, block.endTime)}
                 </Text>
                 <View style={[
                   styles.timelineBlock,
