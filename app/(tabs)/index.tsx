@@ -54,6 +54,26 @@ export default function TodayScreen() {
     setShowScheduleModal(true);
   };
 
+  const handleToggleComplete = (goalId: string) => {
+    const goal = todaysGoals.find(g => g.id === goalId);
+    if (goal?.completed) {
+      uncompleteGoal(goalId);
+    } else {
+      completeGoal(goalId);
+    }
+  };
+
+  const handleSetTimer = (goalId: string) => {
+    setTimerForGoal(goalId);
+  };
+
+  const handleEditGoal = (goal: Goal) => {
+    router.push({
+      pathname: '/modals/edit-goal',
+      params: { goalId: goal.id }
+    });
+  };
+
   // Get current time for "happening now" indicator
   const getCurrentActivity = () => {
     const now = new Date();
@@ -112,7 +132,14 @@ export default function TodayScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Compact Daily Schedule Overview */}
-        <DailyScheduleOverview goals={todaysGoals} date={today} />
+        <DailyScheduleOverview 
+          goals={todaysGoals} 
+          date={today}
+          onToggleComplete={handleToggleComplete}
+          onSetTimer={handleSetTimer}
+          onEditSchedule={handleEditSchedule}
+          onEditGoal={handleEditGoal}
+        />
         
         {/* Quick Actions */}
         <View style={styles.quickActionsSection}>

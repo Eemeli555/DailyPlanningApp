@@ -1,13 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { format, set, isWithinInterval, isBefore, isAfter } from 'date-fns';
 import { Clock, CircleCheck as CheckCircle } from 'lucide-react-native';
 import { COLORS } from '@/constants/theme';
 import { Goal } from '@/types';
+import GoalDetailModal from './GoalDetailModal';
 
 interface DailyScheduleOverviewProps {
   goals: Goal[];
   date?: Date;
+  onToggleComplete?: (goalId: string) => void;
+  onSetTimer?: (goalId: string) => void;
+  onEditSchedule?: (goal: Goal) => void;
+  onEditGoal?: (goal: Goal) => void;
 }
 
 interface TimeBlock {
@@ -18,7 +23,17 @@ interface TimeBlock {
   goal?: Goal;
 }
 
-const DailyScheduleOverview = ({ goals, date = new Date() }: DailyScheduleOverviewProps) => {
+const DailyScheduleOverview = ({ 
+  goals, 
+  date = new Date(),
+  onToggleComplete,
+  onSetTimer,
+  onEditSchedule,
+  onEditGoal
+}: DailyScheduleOverviewProps) => {
+  const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+
   // Create time blocks from scheduled goals
   const createTimeBlocks = (): TimeBlock[] => {
     const blocks: TimeBlock[] = [];
@@ -75,104 +90,167 @@ const DailyScheduleOverview = ({ goals, date = new Date() }: DailyScheduleOvervi
 
   const nextGoal = getNextScheduledGoal();
 
+  const handleGoalPress = (goal: Goal) => {
+    setSelectedGoal(goal);
+    setShowDetailModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowDetailModal(false);
+    setSelectedGoal(null);
+  };
+
+  const handleToggleComplete = (goalId: string) => {
+    onToggleComplete?.(goalId);
+    handleCloseModal();
+  };
+
+  const handleSetTimer = () => {
+    if (selectedGoal) {
+      onSetTimer?.(selectedGoal.id);
+      handleCloseModal();
+    }
+  };
+
+  const handleEditSchedule = () => {
+    if (selectedGoal) {
+      onEditSchedule?.(selectedGoal);
+      handleCloseModal();
+    }
+  };
+
+  const handleEditGoal = () => {
+    if (selectedGoal) {
+      onEditGoal?.(selectedGoal);
+      handleCloseModal();
+    }
+  };
+
   return (
-    <View style={styles.container}>
-      {/* Compact Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.title}>TODAY'S PLAN</Text>
-          <Text style={styles.subtitle}>
-            {completedCount}/{totalGoals} completed
-          </Text>
+    <>
+      <View style={styles.container}>
+        {/* Compact Header */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.title}>TODAY'S PLAN</Text>
+            <Text style={styles.subtitle}>
+              {completedCount}/{totalGoals} completed
+            </Text>
+          </View>
+          <View style={styles.progressIndicator}>
+            <Text style={styles.progressText}>
+              {Math.round((completedCount / Math.max(totalGoals, 1)) * 100)}%
+            </Text>
+          </View>
         </View>
-        <View style={styles.progressIndicator}>
-          <Text style={styles.progressText}>
-            {Math.round((completedCount / Math.max(totalGoals, 1)) * 100)}%
-          </Text>
-        </View>
+
+        {/* Next Up Section */}
+        {nextGoal && (
+          <TouchableOpacity 
+            style={styles.nextUpSection}
+            onPress={() => handleGoalPress(nextGoal)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.nextUpHeader}>
+              <Clock size={16} color={COLORS.primary[600]} />
+              <Text style={styles.nextUpTitle}>Next Up</Text>
+            </View>
+            <Text style={styles.nextUpGoal}>{nextGoal.title}</Text>
+            <Text style={styles.nextUpTime}>
+              {formatTimeRange(
+                new Date(nextGoal.scheduledTime!.start), 
+                new Date(nextGoal.scheduledTime!.end)
+              )}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Compact Schedule Timeline */}
+        {timeBlocks.length > 0 && (
+          <View style={styles.timelineSection}>
+            <Text style={styles.sectionTitle}>Scheduled</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.timelineContainer}
+            >
+              {timeBlocks.map((block, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.timelineItem}
+                  onPress={() => block.goal && handleGoalPress(block.goal)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.timelineTime}>
+                    {formatTimeRange(block.startTime, block.endTime)}
+                  </Text>
+                  <View style={[
+                    styles.timelineBlock,
+                    block.isCompleted && styles.completedBlock
+                  ]}>
+                    {block.isCompleted && (
+                      <CheckCircle size={12} color={COLORS.white} />
+                    )}
+                    <Text style={[
+                      styles.timelineActivity,
+                      block.isCompleted && styles.completedActivity
+                    ]} numberOfLines={2}>
+                      {block.activity}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Unscheduled Goals - Compact List */}
+        {unscheduledGoals.length > 0 && (
+          <View style={styles.unscheduledSection}>
+            <Text style={styles.sectionTitle}>
+              Unscheduled ({unscheduledGoals.length})
+            </Text>
+            <View style={styles.unscheduledList}>
+              {unscheduledGoals.slice(0, 3).map((goal, index) => (
+                <TouchableOpacity
+                  key={goal.id}
+                  style={styles.unscheduledItem}
+                  onPress={() => handleGoalPress(goal)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[
+                    styles.unscheduledDot,
+                    goal.completed && styles.completedDot
+                  ]} />
+                  <Text style={[
+                    styles.unscheduledText,
+                    goal.completed && styles.completedText
+                  ]} numberOfLines={1}>
+                    {goal.title}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+              {unscheduledGoals.length > 3 && (
+                <Text style={styles.moreText}>
+                  +{unscheduledGoals.length - 3} more
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
       </View>
 
-      {/* Next Up Section */}
-      {nextGoal && (
-        <View style={styles.nextUpSection}>
-          <View style={styles.nextUpHeader}>
-            <Clock size={16} color={COLORS.primary[600]} />
-            <Text style={styles.nextUpTitle}>Next Up</Text>
-          </View>
-          <Text style={styles.nextUpGoal}>{nextGoal.title}</Text>
-          <Text style={styles.nextUpTime}>
-            {formatTimeRange(
-              new Date(nextGoal.scheduledTime!.start), 
-              new Date(nextGoal.scheduledTime!.end)
-            )}
-          </Text>
-        </View>
-      )}
-
-      {/* Compact Schedule Timeline */}
-      {timeBlocks.length > 0 && (
-        <View style={styles.timelineSection}>
-          <Text style={styles.sectionTitle}>Scheduled</Text>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.timelineContainer}
-          >
-            {timeBlocks.map((block, index) => (
-              <View key={index} style={styles.timelineItem}>
-                <Text style={styles.timelineTime}>
-                  {formatTimeRange(block.startTime, block.endTime)}
-                </Text>
-                <View style={[
-                  styles.timelineBlock,
-                  block.isCompleted && styles.completedBlock
-                ]}>
-                  {block.isCompleted && (
-                    <CheckCircle size={12} color={COLORS.white} />
-                  )}
-                  <Text style={[
-                    styles.timelineActivity,
-                    block.isCompleted && styles.completedActivity
-                  ]} numberOfLines={2}>
-                    {block.activity}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Unscheduled Goals - Compact List */}
-      {unscheduledGoals.length > 0 && (
-        <View style={styles.unscheduledSection}>
-          <Text style={styles.sectionTitle}>
-            Unscheduled ({unscheduledGoals.length})
-          </Text>
-          <View style={styles.unscheduledList}>
-            {unscheduledGoals.slice(0, 3).map((goal, index) => (
-              <View key={goal.id} style={styles.unscheduledItem}>
-                <View style={[
-                  styles.unscheduledDot,
-                  goal.completed && styles.completedDot
-                ]} />
-                <Text style={[
-                  styles.unscheduledText,
-                  goal.completed && styles.completedText
-                ]} numberOfLines={1}>
-                  {goal.title}
-                </Text>
-              </View>
-            ))}
-            {unscheduledGoals.length > 3 && (
-              <Text style={styles.moreText}>
-                +{unscheduledGoals.length - 3} more
-              </Text>
-            )}
-          </View>
-        </View>
-      )}
-    </View>
+      {/* Goal Detail Modal */}
+      <GoalDetailModal
+        visible={showDetailModal}
+        goal={selectedGoal}
+        onClose={handleCloseModal}
+        onToggleComplete={handleToggleComplete}
+        onSetTimer={selectedGoal && !selectedGoal.scheduledTime ? handleSetTimer : undefined}
+        onEditSchedule={selectedGoal?.scheduledTime ? handleEditSchedule : undefined}
+        onEdit={handleEditGoal}
+      />
+    </>
   );
 };
 
