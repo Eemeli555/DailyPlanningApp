@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView } from 'react-native';
 import { format } from 'date-fns';
-import { X, Clock, Calendar, CheckCircle, Circle, Timer, Bell } from 'lucide-react-native';
+import { X, Clock, Calendar, CircleCheck as CheckCircle, Circle, Timer, Bell } from 'lucide-react-native';
 import { COLORS } from '@/constants/theme';
 import { Goal } from '@/types';
 import Button from './Button';
