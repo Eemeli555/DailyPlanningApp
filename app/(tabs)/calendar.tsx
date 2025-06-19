@@ -2,7 +2,7 @@ import { useContext, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isSameDay, addMonths, subMonths, parse, set } from 'date-fns';
-import { ChevronLeft, ChevronRight, Clock, CheckCircle, Circle } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Clock, CircleCheck as CheckCircle, Circle } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
