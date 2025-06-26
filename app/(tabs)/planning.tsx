@@ -39,6 +39,7 @@ export default function PlanningScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [goalView, setGoalView] = useState<'all' | 'daily' | 'longterm'>('all');
   
   const today = new Date().toISOString().split('T')[0];
   const todayEntries = habitEntries.filter(entry => entry.date === today);
@@ -308,8 +309,6 @@ export default function PlanningScreen() {
   };
 
   const renderGoals = () => {
-    const [goalView, setGoalView] = useState<'all' | 'daily' | 'longterm'>('all');
-
     const renderGoalViewSelector = () => (
       <View style={styles.goalViewSelector}>
         {[
