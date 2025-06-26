@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
-import { X, Target, Repeat, Dumbbell, Plus } from 'lucide-react-native';
+import { X, Target, Repeat, Dumbbell, Plus, ListTodo } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { COLORS } from '@/constants/theme';
@@ -20,13 +20,22 @@ const CreateChoiceModal = ({ visible, onClose }: CreateChoiceModalProps) => {
 
   const choices = [
     {
-      id: 'goal',
+      id: 'daily-goal',
       title: 'Daily Goal',
       description: 'Create a goal for today or your library',
-      icon: Target,
+      icon: ListTodo,
       color: COLORS.primary[600],
       backgroundColor: COLORS.primary[50],
       route: '/modals/add-goal',
+    },
+    {
+      id: 'long-term-goal',
+      title: 'Long-term Goal',
+      description: 'Set a bigger aspiration with subtasks',
+      icon: Target,
+      color: COLORS.secondary[600],
+      backgroundColor: COLORS.secondary[50],
+      route: '/modals/add-long-term-goal',
     },
     {
       id: 'habit',

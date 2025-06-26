@@ -366,16 +366,32 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         if (todayPlan) {
           setTodaysGoals(todayPlan.goals);
         } else {
-          // If no plan exists for today, create one with automatic goals
+          // Create today's plan with automatic goals and habits
           const storedLibrary = JSON.parse(storedGoalsLibrary || '[]');
-          const automaticGoals = storedLibrary.filter((goal: Goal) => goal.isAutomatic);
-          setTodaysGoals(automaticGoals);
+          const storedHabitsData = JSON.parse(storedHabits || '[]');
           
-          // Create today's plan with automatic goals
-          if (automaticGoals.length > 0) {
+          const automaticGoals = storedLibrary.filter((goal: Goal) => goal.isAutomatic);
+          const activeHabits = storedHabitsData.filter((habit: Habit) => habit.isActive);
+          
+          // Convert active habits to goals for today's plan
+          const habitGoals: Goal[] = activeHabits.map((habit: Habit) => ({
+            id: `habit-${habit.id}-${todayStr}`,
+            title: habit.title,
+            description: habit.description,
+            completed: false,
+            isAutomatic: true, // Habits are automatically added
+            hasTimer: false,
+            createdAt: new Date().toISOString(),
+          }));
+          
+          const allTodaysGoals = [...automaticGoals, ...habitGoals];
+          setTodaysGoals(allTodaysGoals);
+          
+          // Create today's plan
+          if (allTodaysGoals.length > 0) {
             const newPlan: DailyPlan = {
               date: todayStr,
-              goals: automaticGoals,
+              goals: allTodaysGoals,
               goalsCompleted: 0,
               progress: 0,
               quote: quoteOfTheDay,
@@ -447,6 +463,36 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     
     updateTodaysPlan();
   }, [todaysGoals, loaded]);
+  
+  // Auto-add new habits to today's goals when habits change
+  useEffect(() => {
+    if (!loaded) return;
+    
+    const updateTodaysGoalsWithHabits = async () => {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const activeHabits = habits.filter(habit => habit.isActive);
+      
+      // Convert active habits to goals
+      const habitGoals: Goal[] = activeHabits.map((habit: Habit) => ({
+        id: `habit-${habit.id}-${today}`,
+        title: habit.title,
+        description: habit.description,
+        completed: false,
+        isAutomatic: true,
+        hasTimer: false,
+        createdAt: new Date().toISOString(),
+      }));
+      
+      // Get automatic daily goals
+      const automaticGoals = goalsLibrary.filter(goal => goal.isAutomatic);
+      
+      // Combine and update today's goals
+      const allTodaysGoals = [...automaticGoals, ...habitGoals];
+      setTodaysGoals(allTodaysGoals);
+    };
+    
+    updateTodaysGoalsWithHabits();
+  }, [habits, goalsLibrary, loaded]);
   
   // Persist data whenever it changes
   useEffect(() => {
