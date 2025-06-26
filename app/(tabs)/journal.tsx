@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Plus, Calendar, Sunrise, Sunset, CreditCard as Edit3, BookOpen } from 'lucide-react-native';
+import { Plus, Calendar, Sunrise, Sunset, CreditCard as Edit3, BookOpen, Moon, Clock } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { format } from 'date-fns';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -61,6 +61,17 @@ export default function JournalScreen() {
   const getMoodLabel = (mood: number) => {
     const moodData = MOOD_LABELS.find(m => m.value === mood);
     return moodData?.label || 'Okay';
+  };
+
+  // Check if it's evening time (7 PM - 10 PM)
+  const isEveningTime = () => {
+    const now = new Date();
+    const hour = now.getHours();
+    return hour >= 19 && hour <= 22; // 7 PM to 10 PM
+  };
+
+  const shouldShowEveningQuiz = () => {
+    return isEveningTime() && !todayEntry;
   };
 
   return (
@@ -123,6 +134,32 @@ export default function JournalScreen() {
             <Text style={styles.streakLabel}>Day Streak</Text>
           </View>
         </View>
+
+        {/* Evening Quiz Prompt */}
+        {shouldShowEveningQuiz() && (
+          <Animated.View 
+            entering={FadeInDown.springify()}
+            style={styles.eveningQuizCard}
+          >
+            <View style={styles.eveningQuizHeader}>
+              <Moon size={20} color={COLORS.secondary[600]} />
+              <Text style={styles.eveningQuizTitle}>Evening Reflection</Text>
+              <Clock size={16} color={COLORS.secondary[500]} />
+            </View>
+            <Text style={styles.eveningQuizSubtitle}>
+              Take a moment to reflect on your day with our guided evening quiz
+            </Text>
+            <TouchableOpacity
+              style={styles.eveningQuizButton}
+              onPress={() => router.push({
+                pathname: '/modals/evening-quiz',
+                params: { date: today }
+              })}
+            >
+              <Text style={styles.eveningQuizButtonText}>Start Evening Reflection</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
       </View>
 
       <ScrollView
@@ -260,6 +297,7 @@ const styles = StyleSheet.create({
   todaySection: {
     flexDirection: 'row',
     gap: 12,
+    marginBottom: 16,
   },
   todayCard: {
     flex: 1,
@@ -340,6 +378,44 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
     color: COLORS.warning[600],
     marginTop: 4,
+  },
+  eveningQuizCard: {
+    backgroundColor: COLORS.secondary[50],
+    borderRadius: 12,
+    padding: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.secondary[500],
+  },
+  eveningQuizHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  eveningQuizTitle: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.secondary[700],
+    marginLeft: 8,
+    flex: 1,
+  },
+  eveningQuizSubtitle: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.secondary[600],
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  eveningQuizButton: {
+    backgroundColor: COLORS.secondary[600],
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  eveningQuizButtonText: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.white,
   },
   scrollContent: {
     flex: 1,

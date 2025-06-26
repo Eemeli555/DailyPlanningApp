@@ -81,6 +81,57 @@ export default function RootLayout() {
             },
           }} 
         />
+        <Stack.Screen 
+          name="modals/add-habit" 
+          options={{ 
+            presentation: 'modal',
+            headerShown: true,
+            title: 'Add New Habit',
+            headerTitleStyle: {
+              fontFamily: 'Inter-SemiBold',
+            },
+          }} 
+        />
+        <Stack.Screen 
+          name="modals/add-long-term-goal" 
+          options={{ 
+            presentation: 'modal',
+            headerShown: true,
+            title: 'Add Long-term Goal',
+            headerTitleStyle: {
+              fontFamily: 'Inter-SemiBold',
+            },
+          }} 
+        />
+        <Stack.Screen 
+          name="modals/add-workout" 
+          options={{ 
+            presentation: 'modal',
+            headerShown: true,
+            title: 'Add Workout',
+            headerTitleStyle: {
+              fontFamily: 'Inter-SemiBold',
+            },
+          }} 
+        />
+        <Stack.Screen 
+          name="modals/journal-entry" 
+          options={{ 
+            presentation: 'modal',
+            headerShown: true,
+            title: 'Journal Entry',
+            headerTitleStyle: {
+              fontFamily: 'Inter-SemiBold',
+            },
+          }} 
+        />
+        <Stack.Screen 
+          name="modals/evening-quiz" 
+          options={{ 
+            presentation: 'fullScreenModal',
+            headerShown: false,
+          }} 
+        />
       </Stack>
       <StatusBar style="auto" />
     </AppProvider>
