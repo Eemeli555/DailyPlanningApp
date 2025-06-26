@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { format } from 'date-fns';
-import { CircleCheck as CheckCircle, Circle, Edit, Flame } from 'lucide-react-native';
+import { CircleCheck as CheckCircle, Circle, CreditCard as Edit, Flame } from 'lucide-react-native';
 import { COLORS } from '@/constants/theme';
 import { HABIT_CATEGORIES } from '@/constants/gamification';
 import { Habit, HabitEntry } from '@/types';
