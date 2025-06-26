@@ -2,9 +2,9 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
-import { Plus, Calendar, CircleCheck as CheckCircle2, Clock } from 'lucide-react-native';
+import { Plus, Calendar, CircleCheck as CheckCircle2, Clock, Star, Zap, Trophy, Target } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import Animated, { FadeInUp } from 'react-native-reanimated';
+import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
 
 import { AppContext } from '@/contexts/AppContext';
 import { Goal } from '@/types';
@@ -28,15 +28,32 @@ export default function TodayScreen() {
     uncompleteGoal,
     setTimerForGoal,
     updateGoalSchedule,
-    quoteOfTheDay
+    quoteOfTheDay,
+    userProfile,
+    habits,
+    habitEntries,
+    dailyChallenge,
+    completeDailyChallenge,
+    achievements
   } = useContext(AppContext);
   
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [selectedGoalForScheduling, setSelectedGoalForScheduling] = useState<Goal | null>(null);
+  const [showAchievementModal, setShowAchievementModal] = useState(false);
   
   const today = new Date();
   const todayFormatted = format(today, 'EEEE, MMMM d');
   const { label, color } = getCompletionStatus(progressToday);
+
+  // Get today's habit progress
+  const todayStr = today.toISOString().split('T')[0];
+  const todayHabitEntries = habitEntries.filter(entry => entry.date === todayStr);
+  const activeHabits = habits.filter(habit => habit.isActive);
+  const completedHabits = todayHabitEntries.filter(entry => entry.completed).length;
+  const habitProgress = activeHabits.length > 0 ? completedHabits / activeHabits.length : 0;
+
+  // Check for new achievements
+  const recentAchievements = achievements.slice(-3);
 
   const handleScheduleGoal = (goal: Goal) => {
     setSelectedGoalForScheduling(goal);
@@ -87,42 +104,71 @@ export default function TodayScreen() {
 
   const currentActivity = getCurrentActivity();
 
+  // Get greeting based on time
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning! ☀️';
+    if (hour < 17) return 'Good afternoon! 🌤️';
+    return 'Good evening! 🌙';
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.dateText}>{todayFormatted}</Text>
-            <Text style={styles.title}>Today's Plan</Text>
+            <Text style={styles.greeting}>{getGreeting()}</Text>
+            <Text style={styles.title}>Today's Focus</Text>
           </View>
           <TouchableOpacity 
-            style={styles.calendarButton}
-            onPress={() => router.push('/calendar')}
+            style={styles.profileButton}
+            onPress={() => router.push('/profile')}
           >
-            <Calendar size={20} color={COLORS.primary[600]} />
+            <View style={styles.levelBadge}>
+              <Text style={styles.levelText}>{userProfile?.level || 1}</Text>
+            </View>
           </TouchableOpacity>
         </View>
         
-        {/* Compact Progress Card */}
-        <View style={styles.progressCard}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressTitle}>Progress</Text>
-            <Text style={[styles.progressLabel, { color }]}>
+        {/* Progress Overview */}
+        <View style={styles.progressSection}>
+          <View style={styles.progressCard}>
+            <Text style={styles.progressTitle}>Goals</Text>
+            <Text style={styles.progressNumber}>
               {Math.round(progressToday * 100)}%
             </Text>
+            <ProgressBar progress={progressToday} height={4} />
           </View>
-          <ProgressBar progress={progressToday} height={6} />
+          
+          <View style={styles.progressCard}>
+            <Text style={styles.progressTitle}>Habits</Text>
+            <Text style={styles.progressNumber}>
+              {Math.round(habitProgress * 100)}%
+            </Text>
+            <ProgressBar progress={habitProgress} height={4} />
+          </View>
+          
+          <TouchableOpacity 
+            style={styles.xpCard}
+            onPress={() => router.push('/profile')}
+          >
+            <Star size={16} color={COLORS.warning[600]} />
+            <Text style={styles.xpText}>{userProfile?.xp || 0} XP</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Current Activity Indicator */}
         {currentActivity && (
-          <View style={styles.currentActivityCard}>
+          <Animated.View 
+            entering={FadeInDown.springify()}
+            style={styles.currentActivityCard}
+          >
             <View style={styles.currentActivityHeader}>
               <Clock size={14} color={COLORS.accent[600]} />
               <Text style={styles.currentActivityLabel}>Happening Now</Text>
             </View>
             <Text style={styles.currentActivityTitle}>{currentActivity.title}</Text>
-          </View>
+          </Animated.View>
         )}
       </View>
 
@@ -131,6 +177,65 @@ export default function TodayScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {/* Daily Challenge */}
+        {dailyChallenge && !dailyChallenge.completed && (
+          <Animated.View 
+            entering={FadeInUp.delay(100).springify()}
+            style={styles.challengeCard}
+          >
+            <View style={styles.challengeHeader}>
+              <View style={styles.challengeIcon}>
+                <Zap size={20} color={COLORS.warning[600]} />
+              </View>
+              <View style={styles.challengeContent}>
+                <Text style={styles.challengeTitle}>{dailyChallenge.title}</Text>
+                <Text style={styles.challengeDescription}>{dailyChallenge.description}</Text>
+              </View>
+              <View style={styles.challengeReward}>
+                <Text style={styles.challengeXP}>+{dailyChallenge.xpReward} XP</Text>
+              </View>
+            </View>
+            <Button
+              title="Complete Challenge"
+              onPress={completeDailyChallenge}
+              style={styles.challengeButton}
+            />
+          </Animated.View>
+        )}
+
+        {/* Recent Achievements */}
+        {recentAchievements.length > 0 && (
+          <Animated.View 
+            entering={FadeInUp.delay(200).springify()}
+            style={styles.achievementsSection}
+          >
+            <View style={styles.sectionHeader}>
+              <Trophy size={20} color={COLORS.warning[600]} />
+              <Text style={styles.sectionTitle}>Recent Achievements</Text>
+            </View>
+            
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.achievementsScroll}
+            >
+              {recentAchievements.map((achievement, index) => (
+                <TouchableOpacity
+                  key={achievement.id}
+                  style={styles.achievementCard}
+                  onPress={() => setShowAchievementModal(true)}
+                >
+                  <Text style={styles.achievementIcon}>🏆</Text>
+                  <Text style={styles.achievementTitle} numberOfLines={2}>
+                    {achievement.title}
+                  </Text>
+                  <Text style={styles.achievementXP}>+{achievement.xpReward} XP</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Animated.View>
+        )}
+        
         {/* Compact Daily Schedule Overview */}
         <DailyScheduleOverview 
           goals={todaysGoals} 
@@ -149,24 +254,27 @@ export default function TodayScreen() {
               style={styles.quickActionCard}
               onPress={() => router.push('/modals/add-goal')}
             >
-              <Plus size={20} color={COLORS.primary[600]} />
+              <Target size={20} color={COLORS.primary[600]} />
               <Text style={styles.quickActionText}>Add Goal</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.quickActionCard}
-              onPress={() => router.push('/calendar')}
+              onPress={() => router.push('/modals/add-habit')}
             >
-              <Calendar size={20} color={COLORS.accent[600]} />
-              <Text style={styles.quickActionText}>Schedule</Text>
+              <Plus size={20} color={COLORS.accent[600]} />
+              <Text style={styles.quickActionText}>Add Habit</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.quickActionCard}
-              onPress={() => router.push('/(tabs)/stats')}
+              onPress={() => router.push({
+                pathname: '/modals/journal-entry',
+                params: { date: todayStr, mode: 'create' }
+              })}
             >
               <CheckCircle2 size={20} color={COLORS.success[600]} />
-              <Text style={styles.quickActionText}>Progress</Text>
+              <Text style={styles.quickActionText}>Journal</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -227,6 +335,35 @@ export default function TodayScreen() {
         onSchedule={handleScheduleConfirm}
         selectedDate={today}
       />
+
+      {/* Achievement Modal */}
+      <Modal
+        visible={showAchievementModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAchievementModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>🎉 Achievement Unlocked!</Text>
+            {recentAchievements.length > 0 && (
+              <>
+                <Text style={styles.modalAchievementTitle}>
+                  {recentAchievements[recentAchievements.length - 1].title}
+                </Text>
+                <Text style={styles.modalAchievementDescription}>
+                  {recentAchievements[recentAchievements.length - 1].description}
+                </Text>
+              </>
+            )}
+            <Button
+              title="Awesome!"
+              onPress={() => setShowAchievementModal(false)}
+              style={styles.modalButton}
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -256,9 +393,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  dateText: {
+  greeting: {
     fontSize: 14,
     color: COLORS.neutral[500],
     fontFamily: 'Inter-Regular',
@@ -269,7 +406,7 @@ const styles = StyleSheet.create({
     color: COLORS.neutral[900],
     marginTop: 2,
   },
-  calendarButton: {
+  profileButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -277,23 +414,57 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  progressCard: {
-    marginBottom: 8,
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  levelBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.primary[600],
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
   },
-  progressTitle: {
-    fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
-    color: COLORS.neutral[700],
-  },
-  progressLabel: {
+  levelText: {
     fontSize: 14,
     fontFamily: 'Inter-Bold',
+    color: COLORS.white,
+  },
+  progressSection: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 8,
+  },
+  progressCard: {
+    flex: 1,
+    backgroundColor: COLORS.neutral[50],
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+  },
+  progressTitle: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.neutral[600],
+    marginBottom: 4,
+  },
+  progressNumber: {
+    fontSize: 18,
+    fontFamily: 'Inter-Bold',
+    color: COLORS.neutral[800],
+    marginBottom: 8,
+  },
+  xpCard: {
+    backgroundColor: COLORS.warning[50],
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 80,
+    flexDirection: 'row',
+    gap: 4,
+  },
+  xpText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Bold',
+    color: COLORS.warning[700],
   },
   currentActivityCard: {
     backgroundColor: COLORS.accent[50],
@@ -326,15 +497,110 @@ const styles = StyleSheet.create({
   content: {
     paddingBottom: 100,
   },
-  quickActionsSection: {
+  challengeCard: {
+    backgroundColor: COLORS.warning[50],
+    borderRadius: 16,
+    padding: 16,
     marginHorizontal: 20,
-    marginTop: 8,
+    marginTop: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.warning[500],
+  },
+  challengeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  challengeIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.warning[100],
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  challengeContent: {
+    flex: 1,
+  },
+  challengeTitle: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.warning[800],
+  },
+  challengeDescription: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.warning[700],
+    marginTop: 2,
+  },
+  challengeReward: {
+    backgroundColor: COLORS.warning[200],
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  challengeXP: {
+    fontSize: 12,
+    fontFamily: 'Inter-Bold',
+    color: COLORS.warning[800],
+  },
+  challengeButton: {
+    backgroundColor: COLORS.warning[600],
+  },
+  achievementsSection: {
+    marginHorizontal: 20,
+    marginTop: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
     color: COLORS.neutral[800],
-    marginBottom: 12,
+    marginLeft: 8,
+  },
+  achievementsScroll: {
+    paddingRight: 20,
+    gap: 12,
+  },
+  achievementCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    width: 100,
+    shadowColor: COLORS.neutral[900],
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  achievementIcon: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  achievementTitle: {
+    fontSize: 12,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.neutral[800],
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  achievementXP: {
+    fontSize: 10,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.warning[600],
+  },
+  quickActionsSection: {
+    marginHorizontal: 20,
+    marginTop: 8,
   },
   quickActionsGrid: {
     flexDirection: 'row',
@@ -404,5 +670,44 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
     color: COLORS.primary[600],
     marginTop: 6,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontFamily: 'Inter-Bold',
+    color: COLORS.neutral[900],
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalAchievementTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.warning[700],
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalAchievementDescription: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[600],
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  modalButton: {
+    backgroundColor: COLORS.warning[600],
+    minWidth: 120,
   },
 });

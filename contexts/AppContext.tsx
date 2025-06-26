@@ -4,8 +4,26 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { format, isWithinInterval, startOfDay, endOfDay, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { useRouter } from 'expo-router';
-import { DailyPlan, Goal, NotificationConfig, Workout, Exercise, DailyEntry, CustomColumn, DailyPlannerSettings } from '@/types';
+import { 
+  DailyPlan, 
+  Goal, 
+  NotificationConfig, 
+  Workout, 
+  Exercise, 
+  DailyEntry, 
+  CustomColumn, 
+  DailyPlannerSettings,
+  Habit,
+  HabitEntry,
+  LongTermGoal,
+  JournalEntry,
+  UserProfile,
+  Achievement,
+  DailyChallenge
+} from '@/types';
 import { generateId } from '@/utils/helpers';
+import { calculateLevel, checkForNewAchievements, generateDailyChallenge } from '@/utils/gamification';
+import { XP_REWARDS } from '@/constants/gamification';
 
 interface AppContextProps {
   goalsLibrary: Goal[];
@@ -18,6 +36,15 @@ interface AppContextProps {
   // Daily Planner
   dailyEntries: DailyEntry[];
   plannerSettings: DailyPlannerSettings;
+  
+  // New features
+  habits: Habit[];
+  habitEntries: HabitEntry[];
+  longTermGoals: LongTermGoal[];
+  journalEntries: JournalEntry[];
+  userProfile: UserProfile | null;
+  achievements: Achievement[];
+  dailyChallenge: DailyChallenge | null;
   
   addGoal: (data: { 
     title: string;
@@ -66,6 +93,50 @@ interface AppContextProps {
   removeCustomColumn: (columnId: string) => void;
   updatePlannerSettings: (settings: Partial<DailyPlannerSettings>) => void;
   getEntriesForMonth: (year: number, month: number) => DailyEntry[];
+  
+  // New feature functions
+  addHabit: (data: {
+    title: string;
+    description?: string;
+    category: string;
+    frequency: 'daily' | 'weekly';
+    targetCount?: number;
+    unit?: string;
+    color: string;
+    icon: string;
+  }) => void;
+  updateHabit: (habitId: string, updates: Partial<Habit>) => void;
+  deleteHabit: (habitId: string) => void;
+  toggleHabitCompletion: (habitId: string, date: string) => void;
+  
+  addLongTermGoal: (data: {
+    title: string;
+    description?: string;
+    category: string;
+    priority: 'low' | 'medium' | 'high';
+    deadline?: string;
+    subtasks: string[];
+    color: string;
+  }) => void;
+  updateLongTermGoal: (goalId: string, updates: Partial<LongTermGoal>) => void;
+  deleteLongTermGoal: (goalId: string) => void;
+  toggleSubtask: (goalId: string, subtaskId: string) => void;
+  
+  addJournalEntry: (date: string, data: {
+    mood: number;
+    energy: number;
+    stress: number;
+    reflection?: string;
+    gratitude?: string[];
+    highlights?: string;
+    challenges?: string;
+    tomorrowFocus?: string;
+  }) => void;
+  updateJournalEntry: (entryId: string, updates: Partial<JournalEntry>) => void;
+  deleteJournalEntry: (entryId: string) => void;
+  
+  awardXP: (amount: number, reason: string) => void;
+  completeDailyChallenge: () => void;
 }
 
 export const AppContext = createContext<AppContextProps>({
@@ -77,6 +148,13 @@ export const AppContext = createContext<AppContextProps>({
   quoteOfTheDay: { text: '', author: '' },
   dailyEntries: [],
   plannerSettings: { customColumns: [], autoFillEnabled: true },
+  habits: [],
+  habitEntries: [],
+  longTermGoals: [],
+  journalEntries: [],
+  userProfile: null,
+  achievements: [],
+  dailyChallenge: null,
   
   addGoal: () => {},
   updateGoal: () => {},
@@ -102,6 +180,23 @@ export const AppContext = createContext<AppContextProps>({
   removeCustomColumn: () => {},
   updatePlannerSettings: () => {},
   getEntriesForMonth: () => [],
+  
+  addHabit: () => {},
+  updateHabit: () => {},
+  deleteHabit: () => {},
+  toggleHabitCompletion: () => {},
+  
+  addLongTermGoal: () => {},
+  updateLongTermGoal: () => {},
+  deleteLongTermGoal: () => {},
+  toggleSubtask: () => {},
+  
+  addJournalEntry: () => {},
+  updateJournalEntry: () => {},
+  deleteJournalEntry: () => {},
+  
+  awardXP: () => {},
+  completeDailyChallenge: () => {},
 });
 
 const QUOTES = [
@@ -143,44 +238,123 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     customColumns: [],
     autoFillEnabled: true,
   });
+  
+  // New state
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [habitEntries, setHabitEntries] = useState<HabitEntry[]>([]);
+  const [longTermGoals, setLongTermGoals] = useState<LongTermGoal[]>([]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [dailyChallenge, setDailyChallenge] = useState<DailyChallenge | null>(null);
+  
   const [loaded, setLoaded] = useState(false);
   
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load goals library
+        // Load existing data
         const storedGoalsLibrary = await AsyncStorage.getItem('goalsLibrary');
         if (storedGoalsLibrary) {
           setGoalsLibrary(JSON.parse(storedGoalsLibrary));
         }
         
-        // Load daily plans
         const storedDailyPlans = await AsyncStorage.getItem('dailyPlans');
         if (storedDailyPlans) {
           setDailyPlans(JSON.parse(storedDailyPlans));
         }
         
-        // Load workouts
         const storedWorkouts = await AsyncStorage.getItem('workouts');
         if (storedWorkouts) {
           setWorkouts(JSON.parse(storedWorkouts));
         }
         
-        // Load daily entries
         const storedDailyEntries = await AsyncStorage.getItem('dailyEntries');
         if (storedDailyEntries) {
           setDailyEntries(JSON.parse(storedDailyEntries));
         }
         
-        // Load planner settings
         const storedPlannerSettings = await AsyncStorage.getItem('plannerSettings');
         if (storedPlannerSettings) {
           setPlannerSettings(JSON.parse(storedPlannerSettings));
         }
         
+        // Load new data
+        const storedHabits = await AsyncStorage.getItem('habits');
+        if (storedHabits) {
+          setHabits(JSON.parse(storedHabits));
+        }
+        
+        const storedHabitEntries = await AsyncStorage.getItem('habitEntries');
+        if (storedHabitEntries) {
+          setHabitEntries(JSON.parse(storedHabitEntries));
+        }
+        
+        const storedLongTermGoals = await AsyncStorage.getItem('longTermGoals');
+        if (storedLongTermGoals) {
+          setLongTermGoals(JSON.parse(storedLongTermGoals));
+        }
+        
+        const storedJournalEntries = await AsyncStorage.getItem('journalEntries');
+        if (storedJournalEntries) {
+          setJournalEntries(JSON.parse(storedJournalEntries));
+        }
+        
+        const storedUserProfile = await AsyncStorage.getItem('userProfile');
+        if (storedUserProfile) {
+          setUserProfile(JSON.parse(storedUserProfile));
+        } else {
+          // Create initial user profile
+          const initialProfile: UserProfile = {
+            id: generateId(),
+            name: 'User',
+            level: 1,
+            xp: 0,
+            xpToNextLevel: 100,
+            totalXP: 0,
+            badges: [],
+            streaks: {
+              current: 0,
+              longest: 0,
+              lastActiveDate: new Date().toISOString().split('T')[0],
+            },
+            preferences: {
+              theme: 'light',
+              notifications: true,
+              weekStartsOn: 1,
+            },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          setUserProfile(initialProfile);
+          await AsyncStorage.setItem('userProfile', JSON.stringify(initialProfile));
+        }
+        
+        const storedAchievements = await AsyncStorage.getItem('achievements');
+        if (storedAchievements) {
+          setAchievements(JSON.parse(storedAchievements));
+        }
+        
+        // Generate daily challenge
+        const today = new Date().toISOString().split('T')[0];
+        const storedDailyChallenge = await AsyncStorage.getItem(`dailyChallenge_${today}`);
+        if (storedDailyChallenge) {
+          setDailyChallenge(JSON.parse(storedDailyChallenge));
+        } else {
+          const challenge = generateDailyChallenge([], [], []);
+          const newChallenge: DailyChallenge = {
+            id: generateId(),
+            date: today,
+            ...challenge,
+            completed: false,
+          };
+          setDailyChallenge(newChallenge);
+          await AsyncStorage.setItem(`dailyChallenge_${today}`, JSON.stringify(newChallenge));
+        }
+        
         // Set quote of the day
-        const today = new Date().getDate();
-        const quoteIndex = today % QUOTES.length;
+        const todayNum = new Date().getDate();
+        const quoteIndex = todayNum % QUOTES.length;
         setQuoteOfTheDay(QUOTES[quoteIndex]);
         
         // Initialize today's plan if it doesn't exist
@@ -213,18 +387,6 @@ export const AppProvider = ({ children }: AppProviderProps) => {
           }
         }
         
-        // Create today's daily entry if it doesn't exist
-        const todayEntry = JSON.parse(storedDailyEntries || '[]').find(
-          (entry: DailyEntry) => entry.date === todayStr
-        );
-        
-        if (!todayEntry) {
-          const newEntry = createDailyEntry(todayStr);
-          const updatedEntries = [...JSON.parse(storedDailyEntries || '[]'), newEntry];
-          setDailyEntries(updatedEntries);
-          await AsyncStorage.setItem('dailyEntries', JSON.stringify(updatedEntries));
-        }
-        
         // Set up notifications if needed
         if (Platform.OS !== 'web') {
           registerForPushNotificationsAsync();
@@ -239,38 +401,6 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     
     loadData();
   }, []);
-
-  // Create a new daily entry with default values
-  const createDailyEntry = (date: string): DailyEntry => {
-    const todayGoals = todaysGoals.map(goal => goal.title);
-    const completedGoals = todaysGoals.filter(goal => goal.completed).length;
-    const rating = todaysGoals.length > 0 ? Math.round((completedGoals / todaysGoals.length) * 100) : 0;
-    
-    const customFields: { [key: string]: any } = {};
-    plannerSettings.customColumns.forEach(column => {
-      customFields[column.id] = column.defaultValue || '';
-    });
-    
-    return {
-      id: generateId(),
-      date,
-      goals: todayGoals,
-      sleep: {
-        hours: 0,
-        quality: 'fair',
-      },
-      meals: {},
-      workouts: {
-        completed: [],
-        duration: 0,
-      },
-      thoughts: '',
-      rating,
-      customFields,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-  };
 
   // Calculate progress for today
   const progressToday = todaysGoals.length > 0
@@ -313,20 +443,6 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       
       setDailyPlans(updatedPlans);
       await AsyncStorage.setItem('dailyPlans', JSON.stringify(updatedPlans));
-      
-      // Update today's daily entry with current goals and rating
-      const entryIndex = dailyEntries.findIndex(entry => entry.date === today);
-      if (entryIndex >= 0) {
-        const updatedEntries = [...dailyEntries];
-        updatedEntries[entryIndex] = {
-          ...updatedEntries[entryIndex],
-          goals: todaysGoals.map(goal => goal.title),
-          rating: Math.round(progress * 100),
-          updatedAt: new Date().toISOString(),
-        };
-        setDailyEntries(updatedEntries);
-        await AsyncStorage.setItem('dailyEntries', JSON.stringify(updatedEntries));
-      }
     };
     
     updateTodaysPlan();
@@ -340,10 +456,18 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       await AsyncStorage.setItem('goalsLibrary', JSON.stringify(goalsLibrary));
       await AsyncStorage.setItem('dailyEntries', JSON.stringify(dailyEntries));
       await AsyncStorage.setItem('plannerSettings', JSON.stringify(plannerSettings));
+      await AsyncStorage.setItem('habits', JSON.stringify(habits));
+      await AsyncStorage.setItem('habitEntries', JSON.stringify(habitEntries));
+      await AsyncStorage.setItem('longTermGoals', JSON.stringify(longTermGoals));
+      await AsyncStorage.setItem('journalEntries', JSON.stringify(journalEntries));
+      if (userProfile) {
+        await AsyncStorage.setItem('userProfile', JSON.stringify(userProfile));
+      }
+      await AsyncStorage.setItem('achievements', JSON.stringify(achievements));
     };
     
     saveData();
-  }, [goalsLibrary, dailyEntries, plannerSettings, loaded]);
+  }, [goalsLibrary, dailyEntries, plannerSettings, habits, habitEntries, longTermGoals, journalEntries, userProfile, achievements, loaded]);
   
   // Add a new goal
   const addGoal = (data: { 
@@ -417,6 +541,9 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         ? { ...goal, completed: true } 
         : goal
     ));
+    
+    // Award XP
+    awardXP(XP_REWARDS.GOAL_SUBTASK_COMPLETED, 'Goal completed');
   };
   
   // Mark a goal as incomplete
@@ -618,7 +745,17 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       } else {
         // Create new entry if it doesn't exist
         const newEntry = {
-          ...createDailyEntry(date),
+          id: generateId(),
+          date,
+          goals: [],
+          sleep: { hours: 0, quality: 'fair' as const },
+          meals: {},
+          workouts: { completed: [], duration: 0 },
+          thoughts: '',
+          rating: 0,
+          customFields: {},
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
           ...updates,
         };
         return [...prev, newEntry];
@@ -675,6 +812,291 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     });
   };
 
+  // New feature functions
+  const addHabit = (data: {
+    title: string;
+    description?: string;
+    category: string;
+    frequency: 'daily' | 'weekly';
+    targetCount?: number;
+    unit?: string;
+    color: string;
+    icon: string;
+  }) => {
+    const newHabit: Habit = {
+      id: generateId(),
+      title: data.title,
+      description: data.description,
+      category: data.category as any,
+      frequency: data.frequency,
+      targetCount: data.targetCount,
+      unit: data.unit,
+      color: data.color,
+      icon: data.icon,
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    setHabits(prev => [...prev, newHabit]);
+  };
+
+  const updateHabit = (habitId: string, updates: Partial<Habit>) => {
+    setHabits(prev => prev.map(habit =>
+      habit.id === habitId
+        ? { ...habit, ...updates, updatedAt: new Date().toISOString() }
+        : habit
+    ));
+  };
+
+  const deleteHabit = (habitId: string) => {
+    setHabits(prev => prev.filter(habit => habit.id !== habitId));
+    setHabitEntries(prev => prev.filter(entry => entry.habitId !== habitId));
+  };
+
+  const toggleHabitCompletion = (habitId: string, date: string) => {
+    const existingEntry = habitEntries.find(
+      entry => entry.habitId === habitId && entry.date === date
+    );
+    
+    if (existingEntry) {
+      // Toggle existing entry
+      setHabitEntries(prev => prev.map(entry =>
+        entry.id === existingEntry.id
+          ? { ...entry, completed: !entry.completed, completedAt: !entry.completed ? new Date().toISOString() : undefined }
+          : entry
+      ));
+      
+      // Award XP if completing
+      if (!existingEntry.completed) {
+        awardXP(XP_REWARDS.HABIT_COMPLETED, 'Habit completed');
+      }
+    } else {
+      // Create new entry
+      const newEntry: HabitEntry = {
+        id: generateId(),
+        habitId,
+        date,
+        completed: true,
+        completedAt: new Date().toISOString(),
+      };
+      
+      setHabitEntries(prev => [...prev, newEntry]);
+      awardXP(XP_REWARDS.HABIT_COMPLETED, 'Habit completed');
+    }
+  };
+
+  const addLongTermGoal = (data: {
+    title: string;
+    description?: string;
+    category: string;
+    priority: 'low' | 'medium' | 'high';
+    deadline?: string;
+    subtasks: string[];
+    color: string;
+  }) => {
+    const subtasks = data.subtasks.map((title, index) => ({
+      id: generateId(),
+      title,
+      completed: false,
+      order: index,
+    }));
+    
+    const newGoal: LongTermGoal = {
+      id: generateId(),
+      title: data.title,
+      description: data.description,
+      category: data.category as any,
+      priority: data.priority,
+      deadline: data.deadline,
+      status: 'not_started',
+      progress: 0,
+      subtasks,
+      color: data.color,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    setLongTermGoals(prev => [...prev, newGoal]);
+  };
+
+  const updateLongTermGoal = (goalId: string, updates: Partial<LongTermGoal>) => {
+    setLongTermGoals(prev => prev.map(goal =>
+      goal.id === goalId
+        ? { ...goal, ...updates, updatedAt: new Date().toISOString() }
+        : goal
+    ));
+  };
+
+  const deleteLongTermGoal = (goalId: string) => {
+    setLongTermGoals(prev => prev.filter(goal => goal.id !== goalId));
+  };
+
+  const toggleSubtask = (goalId: string, subtaskId: string) => {
+    setLongTermGoals(prev => prev.map(goal => {
+      if (goal.id !== goalId) return goal;
+      
+      const updatedSubtasks = goal.subtasks.map(subtask =>
+        subtask.id === subtaskId
+          ? { 
+              ...subtask, 
+              completed: !subtask.completed,
+              completedAt: !subtask.completed ? new Date().toISOString() : undefined
+            }
+          : subtask
+      );
+      
+      const completedCount = updatedSubtasks.filter(s => s.completed).length;
+      const progress = updatedSubtasks.length > 0 ? completedCount / updatedSubtasks.length : 0;
+      const status = progress === 1 ? 'completed' : progress > 0 ? 'in_progress' : 'not_started';
+      
+      // Award XP for subtask completion
+      const subtask = goal.subtasks.find(s => s.id === subtaskId);
+      if (subtask && !subtask.completed) {
+        awardXP(XP_REWARDS.GOAL_SUBTASK_COMPLETED, 'Subtask completed');
+      }
+      
+      // Award bonus XP for goal completion
+      if (status === 'completed' && goal.status !== 'completed') {
+        awardXP(XP_REWARDS.GOAL_COMPLETED, 'Long-term goal completed');
+      }
+      
+      return {
+        ...goal,
+        subtasks: updatedSubtasks,
+        progress,
+        status,
+        updatedAt: new Date().toISOString(),
+      };
+    }));
+  };
+
+  const addJournalEntry = (date: string, data: {
+    mood: number;
+    energy: number;
+    stress: number;
+    reflection?: string;
+    gratitude?: string[];
+    highlights?: string;
+    challenges?: string;
+    tomorrowFocus?: string;
+  }) => {
+    const newEntry: JournalEntry = {
+      id: generateId(),
+      date,
+      type: 'free',
+      mood: data.mood,
+      energy: data.energy,
+      stress: data.stress,
+      reflection: data.reflection,
+      gratitude: data.gratitude,
+      highlights: data.highlights,
+      challenges: data.challenges,
+      tomorrowFocus: data.tomorrowFocus,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    setJournalEntries(prev => [...prev, newEntry]);
+    awardXP(XP_REWARDS.JOURNAL_ENTRY, 'Journal entry created');
+  };
+
+  const updateJournalEntry = (entryId: string, updates: Partial<JournalEntry>) => {
+    setJournalEntries(prev => prev.map(entry =>
+      entry.id === entryId
+        ? { ...entry, ...updates, updatedAt: new Date().toISOString() }
+        : entry
+    ));
+  };
+
+  const deleteJournalEntry = (entryId: string) => {
+    setJournalEntries(prev => prev.filter(entry => entry.id !== entryId));
+  };
+
+  const awardXP = (amount: number, reason: string) => {
+    if (!userProfile) return;
+    
+    const newTotalXP = userProfile.totalXP + amount;
+    const { level, xpToNextLevel } = calculateLevel(newTotalXP);
+    
+    const wasLevelUp = level > userProfile.level;
+    
+    setUserProfile(prev => {
+      if (!prev) return null;
+      
+      return {
+        ...prev,
+        xp: prev.xp + amount,
+        totalXP: newTotalXP,
+        level,
+        xpToNextLevel,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    
+    // Check for new achievements
+    const newAchievements = checkForNewAchievements(
+      userProfile,
+      habits,
+      habitEntries,
+      longTermGoals,
+      journalEntries
+    );
+    
+    if (newAchievements.length > 0) {
+      setAchievements(prev => [...prev, ...newAchievements]);
+      setUserProfile(prev => {
+        if (!prev) return null;
+        
+        const newBadges = newAchievements.map(achievement => ({
+          id: achievement.id,
+          name: achievement.title,
+          description: achievement.description,
+          icon: achievement.icon,
+          color: achievement.color,
+          unlockedAt: achievement.date,
+          category: 'special' as const,
+        }));
+        
+        return {
+          ...prev,
+          badges: [...prev.badges, ...newBadges],
+        };
+      });
+    }
+    
+    if (wasLevelUp) {
+      const levelUpAchievement: Achievement = {
+        id: generateId(),
+        type: 'level_up',
+        title: `Level ${level} Reached!`,
+        description: `You've reached level ${level}`,
+        xpReward: 0,
+        icon: 'Star',
+        color: '#FFD700',
+        date: new Date().toISOString(),
+      };
+      
+      setAchievements(prev => [...prev, levelUpAchievement]);
+    }
+  };
+
+  const completeDailyChallenge = () => {
+    if (!dailyChallenge || dailyChallenge.completed) return;
+    
+    const updatedChallenge = {
+      ...dailyChallenge,
+      completed: true,
+      completedAt: new Date().toISOString(),
+    };
+    
+    setDailyChallenge(updatedChallenge);
+    awardXP(dailyChallenge.xpReward, 'Daily challenge completed');
+    
+    // Save to storage
+    AsyncStorage.setItem(`dailyChallenge_${dailyChallenge.date}`, JSON.stringify(updatedChallenge));
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -686,6 +1108,13 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         quoteOfTheDay,
         dailyEntries,
         plannerSettings,
+        habits,
+        habitEntries,
+        longTermGoals,
+        journalEntries,
+        userProfile,
+        achievements,
+        dailyChallenge,
         
         addGoal,
         updateGoal,
@@ -711,6 +1140,23 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         removeCustomColumn,
         updatePlannerSettings,
         getEntriesForMonth,
+        
+        addHabit,
+        updateHabit,
+        deleteHabit,
+        toggleHabitCompletion,
+        
+        addLongTermGoal,
+        updateLongTermGoal,
+        deleteLongTermGoal,
+        toggleSubtask,
+        
+        addJournalEntry,
+        updateJournalEntry,
+        deleteJournalEntry,
+        
+        awardXP,
+        completeDailyChallenge,
       }}
     >
       {children}

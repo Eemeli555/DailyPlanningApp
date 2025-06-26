@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { View, StyleSheet } from 'react-native';
-import { Chrome as Home, ListTodo, Dumbbell, ChartBar as BarChart3 } from 'lucide-react-native';
+import { Home, Target, Repeat, BookOpen, TrendingUp } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '@/constants/theme';
 
@@ -40,29 +40,38 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="goals"
+        name="habits"
         options={{
-          title: 'Goals',
+          title: 'Habits',
           tabBarIcon: ({ color, size }) => (
-            <ListTodo size={size - 2} color={color} />
+            <Repeat size={size - 2} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="workouts"
+        name="goals"
         options={{
-          title: 'Workouts',
+          title: 'Goals',
           tabBarIcon: ({ color, size }) => (
-            <Dumbbell size={size - 2} color={color} />
+            <Target size={size - 2} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="journal"
+        options={{
+          title: 'Journal',
+          tabBarIcon: ({ color, size }) => (
+            <BookOpen size={size - 2} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="stats"
         options={{
-          title: 'Statistics',
+          title: 'Progress',
           tabBarIcon: ({ color, size }) => (
-            <BarChart3 size={size - 2} color={color} />
+            <TrendingUp size={size - 2} color={color} />
           ),
         }}
       />
