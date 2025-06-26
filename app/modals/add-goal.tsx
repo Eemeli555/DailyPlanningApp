@@ -56,17 +56,7 @@ export default function AddGoalScreen() {
           textAlignVertical="top"
         />
         
-        <View style={styles.switchContainer}>
-          <View style={styles.switchItem}>
-            <Text style={styles.switchLabel}>Automatically add to daily plans</Text>
-            <Switch
-              value={isAutomatic}
-              onValueChange={setIsAutomatic}
-              trackColor={{ false: COLORS.neutral[300], true: COLORS.primary[500] }}
-              thumbColor={COLORS.white}
-            />
-          </View>
-          
+        <View style={styles.switchContainer}>  
           <View style={styles.switchItem}>
             <Text style={styles.switchLabel}>Add to today's plan</Text>
             <Switch
