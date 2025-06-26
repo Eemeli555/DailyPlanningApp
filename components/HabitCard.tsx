@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { format } from 'date-fns';
-import { CircleCheck as CheckCircle, Circle, CreditCard as Edit3, Flame } from 'lucide-react-native';
+import { CircleCheck as CheckCircle, Circle, Edit, Flame } from 'lucide-react-native';
 import { COLORS } from '@/constants/theme';
 import { HABIT_CATEGORIES } from '@/constants/gamification';
 import { Habit, HabitEntry } from '@/types';
@@ -38,7 +38,7 @@ const HabitCard = ({ habit, entry, onToggle, onEdit, showStreak = true }: HabitC
             {habit.title}
           </Text>
           <TouchableOpacity style={styles.editButton} onPress={onEdit}>
-            <Edit3 size={16} color={COLORS.neutral[500]} />
+            <Edit size={16} color={COLORS.neutral[500]} />
           </TouchableOpacity>
         </View>
         

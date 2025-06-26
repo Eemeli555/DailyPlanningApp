@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { COLORS } from '@/constants/theme';
 import { Goal } from '@/types';
 import Checkbox from './Checkbox';
-import { Clock, CreditCard as Edit, Calendar } from 'lucide-react-native';
+import { Clock, Edit, Calendar } from 'lucide-react-native';
 import { format } from 'date-fns';
 
 interface GoalItemProps {

@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Plus, Calendar, Sunrise, Sunset, CreditCard as Edit3, BookOpen, Moon, Clock } from 'lucide-react-native';
+import { Plus, Calendar, Sunrise, Sunset, Edit, BookOpen, Moon, Clock } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { format } from 'date-fns';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -102,7 +102,7 @@ export default function JournalScreen() {
             >
               <View style={styles.todayHeader}>
                 <Text style={styles.todayTitle}>Today's Entry</Text>
-                <Edit3 size={16} color={COLORS.primary[600]} />
+                <Edit size={16} color={COLORS.primary[600]} />
               </View>
               <View style={styles.moodDisplay}>
                 <Text style={styles.moodEmoji}>{getMoodEmoji(todayEntry.mood)}</Text>

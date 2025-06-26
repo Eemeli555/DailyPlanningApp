@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { format } from 'date-fns';
-import { CircleCheck as CheckCircle, Circle, CreditCard as Edit3, Calendar, CircleAlert as AlertCircle } from 'lucide-react-native';
+import { CircleCheck as CheckCircle, Circle, Edit, Calendar, CircleAlert as AlertCircle } from 'lucide-react-native';
 import { COLORS } from '@/constants/theme';
 import { GOAL_CATEGORIES } from '@/constants/gamification';
 import { LongTermGoal } from '@/types';
@@ -53,7 +53,7 @@ const LongTermGoalCard = ({ goal, onToggleSubtask, onEdit }: LongTermGoalCardPro
         </View>
         
         <TouchableOpacity style={styles.editButton} onPress={onEdit}>
-          <Edit3 size={16} color={COLORS.neutral[500]} />
+          <Edit size={16} color={COLORS.neutral[500]} />
         </TouchableOpacity>
       </View>
       
