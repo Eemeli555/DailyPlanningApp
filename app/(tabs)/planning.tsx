@@ -10,7 +10,7 @@ import { COLORS } from '@/constants/theme';
 import { HABIT_CATEGORIES, GOAL_CATEGORIES } from '@/constants/gamification';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import HabitCard from '@/components/HabitCard';
-import LongTermGoalCard from '@/components/LongTermGoalCard';
+import LongTermGoalCard from '../../components/LongTermGoalCard';
 import GoalItem from '@/components/GoalItem';
 
 type PlanningView = 'overview' | 'habits' | 'goals' | 'workouts';
