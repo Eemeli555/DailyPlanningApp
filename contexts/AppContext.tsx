@@ -49,18 +49,14 @@ interface AppContextProps {
   addGoal: (data: { 
     title: string;
     description?: string;
-    isAutomatic: boolean;
-    addToToday: boolean;
   }) => void;
   
   updateGoal: (goalId: string, data: {
     title: string;
     description?: string;
-    isAutomatic: boolean;
   }) => void;
   
   deleteGoal: (goalId: string) => void;
-  toggleAutomaticGoal: (goalId: string) => void;
   completeGoal: (goalId: string) => void;
   uncompleteGoal: (goalId: string) => void;
   getGoalById: (goalId: string) => Goal | undefined;
@@ -159,7 +155,6 @@ export const AppContext = createContext<AppContextProps>({
   addGoal: () => {},
   updateGoal: () => {},
   deleteGoal: () => {},
-  toggleAutomaticGoal: () => {},
   completeGoal: () => {},
   uncompleteGoal: () => {},
   getGoalById: () => undefined,
@@ -357,7 +352,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         const quoteIndex = todayNum % QUOTES.length;
         setQuoteOfTheDay(QUOTES[quoteIndex]);
         
-        // Initialize today's plan if it doesn't exist
+        // Initialize today's plan with habits only
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         const todayPlan = JSON.parse(storedDailyPlans || '[]').find(
           (plan: DailyPlan) => plan.date === todayStr
@@ -366,11 +361,8 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         if (todayPlan) {
           setTodaysGoals(todayPlan.goals);
         } else {
-          // Create today's plan with automatic goals and habits
-          const storedLibrary = JSON.parse(storedGoalsLibrary || '[]');
+          // Create today's plan with habits only (no automatic goals)
           const storedHabitsData = JSON.parse(storedHabits || '[]');
-          
-          const automaticGoals = storedLibrary.filter((goal: Goal) => goal.isAutomatic);
           const activeHabits = storedHabitsData.filter((habit: Habit) => habit.isActive);
           
           // Convert active habits to goals for today's plan
@@ -384,14 +376,13 @@ export const AppProvider = ({ children }: AppProviderProps) => {
             createdAt: new Date().toISOString(),
           }));
           
-          const allTodaysGoals = [...automaticGoals, ...habitGoals];
-          setTodaysGoals(allTodaysGoals);
+          setTodaysGoals(habitGoals);
           
           // Create today's plan
-          if (allTodaysGoals.length > 0) {
+          if (habitGoals.length > 0) {
             const newPlan: DailyPlan = {
               date: todayStr,
-              goals: allTodaysGoals,
+              goals: habitGoals,
               goalsCompleted: 0,
               progress: 0,
               quote: quoteOfTheDay,
@@ -464,7 +455,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     updateTodaysPlan();
   }, [todaysGoals, loaded]);
   
-  // Auto-add new habits to today's goals when habits change
+  // Auto-add new habits to today's goals when habits change (habits only, no automatic goals)
   useEffect(() => {
     if (!loaded) return;
     
@@ -472,7 +463,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       const today = format(new Date(), 'yyyy-MM-dd');
       const activeHabits = habits.filter(habit => habit.isActive);
       
-      // Convert active habits to goals
+      // Convert active habits to goals (habits only)
       const habitGoals: Goal[] = activeHabits.map((habit: Habit) => ({
         id: `habit-${habit.id}-${today}`,
         title: habit.title,
@@ -483,16 +474,12 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         createdAt: new Date().toISOString(),
       }));
       
-      // Get automatic daily goals
-      const automaticGoals = goalsLibrary.filter(goal => goal.isAutomatic);
-      
-      // Combine and update today's goals
-      const allTodaysGoals = [...automaticGoals, ...habitGoals];
-      setTodaysGoals(allTodaysGoals);
+      // Only use habit goals (no automatic daily goals)
+      setTodaysGoals(habitGoals);
     };
     
     updateTodaysGoalsWithHabits();
-  }, [habits, goalsLibrary, loaded]);
+  }, [habits, loaded]);
   
   // Persist data whenever it changes
   useEffect(() => {
@@ -515,37 +502,29 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     saveData();
   }, [goalsLibrary, dailyEntries, plannerSettings, habits, habitEntries, longTermGoals, journalEntries, userProfile, achievements, loaded]);
   
-  // Add a new goal
+  // Add a new goal (no automatic addition to daily plans)
   const addGoal = (data: { 
     title: string; 
     description?: string; 
-    isAutomatic: boolean;
-    addToToday: boolean;
   }) => {
     const newGoal: Goal = {
       id: generateId(),
       title: data.title,
       description: data.description || '',
       completed: false,
-      isAutomatic: data.isAutomatic,
+      isAutomatic: false, // Goals are never automatic anymore
       hasTimer: false,
       createdAt: new Date().toISOString(),
     };
     
-    // Add to goals library
+    // Add to goals library only
     setGoalsLibrary(prev => [...prev, newGoal]);
-    
-    // Add to today's goals if requested
-    if (data.addToToday) {
-      setTodaysGoals(prev => [...prev, { ...newGoal }]);
-    }
   };
   
   // Update an existing goal
   const updateGoal = (goalId: string, data: {
     title: string;
     description?: string;
-    isAutomatic: boolean;
   }) => {
     // Update in goals library
     setGoalsLibrary(prev => prev.map(goal => 
@@ -557,7 +536,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     // Update in today's goals if present
     setTodaysGoals(prev => prev.map(goal => 
       goal.id === goalId 
-        ? { ...goal, title: data.title, description: data.description || '', isAutomatic: data.isAutomatic } 
+        ? { ...goal, title: data.title, description: data.description || '' } 
         : goal
     ));
   };
@@ -569,15 +548,6 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     
     // Remove from today's goals if present
     setTodaysGoals(prev => prev.filter(goal => goal.id !== goalId));
-  };
-  
-  // Toggle automatic status for a goal
-  const toggleAutomaticGoal = (goalId: string) => {
-    setGoalsLibrary(prev => prev.map(goal => 
-      goal.id === goalId 
-        ? { ...goal, isAutomatic: !goal.isAutomatic } 
-        : goal
-    ));
   };
   
   // Mark a goal as complete
@@ -1165,7 +1135,6 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         addGoal,
         updateGoal,
         deleteGoal,
-        toggleAutomaticGoal,
         completeGoal,
         uncompleteGoal,
         getGoalById,

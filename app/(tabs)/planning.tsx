@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Plus, Target, Repeat, Dumbbell, ListTodo, Filter, Calendar } from 'lucide-react-native';
+import { Plus, Target, Repeat, Dumbbell, ListTodo, Filter, Search } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
@@ -28,11 +28,16 @@ export default function PlanningScreen() {
     toggleHabitCompletion,
     toggleSubtask,
     toggleAutomaticGoal,
-    deleteGoal
+    deleteGoal,
+    completeGoal,
+    uncompleteGoal,
+    setTimerForGoal,
+    updateGoalSchedule
   } = useContext(AppContext);
   
   const [currentView, setCurrentView] = useState<PlanningView>('overview');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   
   const today = new Date().toISOString().split('T')[0];
@@ -41,6 +46,37 @@ export default function PlanningScreen() {
   const activeHabits = habits.filter(habit => habit.isActive);
   const inProgressGoals = longTermGoals.filter(goal => goal.status === 'in_progress');
   const completedHabitsToday = todayEntries.filter(entry => entry.completed).length;
+
+  // Filter goals based on search and category
+  const filteredDailyGoals = goalsLibrary.filter(goal => 
+    goal.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredLongTermGoals = longTermGoals.filter(goal =>
+    goal.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
+    (selectedCategory === 'all' || goal.category === selectedCategory)
+  );
+
+  const filteredHabits = selectedCategory === 'all' 
+    ? activeHabits.filter(habit => habit.title.toLowerCase().includes(searchQuery.toLowerCase()))
+    : activeHabits.filter(habit => 
+        habit.category === selectedCategory && 
+        habit.title.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+
+  const handleEditDailyGoal = (goalId: string) => {
+    router.push({
+      pathname: '/modals/edit-goal',
+      params: { goalId }
+    });
+  };
+
+  const handleEditLongTermGoal = (goalId: string) => {
+    router.push({
+      pathname: '/modals/edit-long-term-goal',
+      params: { goalId }
+    });
+  };
 
   const renderOverview = () => (
     <ScrollView
@@ -67,6 +103,12 @@ export default function PlanningScreen() {
           <Text style={styles.statNumber}>{workouts.length}</Text>
           <Text style={styles.statLabel}>Workouts</Text>
         </View>
+
+        <View style={styles.statCard}>
+          <ListTodo size={24} color={COLORS.secondary[600]} />
+          <Text style={styles.statNumber}>{goalsLibrary.length}</Text>
+          <Text style={styles.statLabel}>Daily Goals</Text>
+        </View>
       </View>
 
       {/* Quick Access */}
@@ -88,7 +130,7 @@ export default function PlanningScreen() {
           >
             <Target size={32} color={COLORS.primary[600]} />
             <Text style={styles.quickAccessTitle}>Goals</Text>
-            <Text style={styles.quickAccessSubtitle}>{longTermGoals.length} total</Text>
+            <Text style={styles.quickAccessSubtitle}>{longTermGoals.length + goalsLibrary.length} total</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -98,15 +140,6 @@ export default function PlanningScreen() {
             <Dumbbell size={32} color={COLORS.warning[600]} />
             <Text style={styles.quickAccessTitle}>Workouts</Text>
             <Text style={styles.quickAccessSubtitle}>{workouts.length} saved</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.quickAccessCard}
-            onPress={() => router.push('/(tabs)/goals')}
-          >
-            <ListTodo size={32} color={COLORS.secondary[600]} />
-            <Text style={styles.quickAccessTitle}>Daily Goals</Text>
-            <Text style={styles.quickAccessSubtitle}>Library</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -146,13 +179,25 @@ export default function PlanningScreen() {
         {/* Goals Preview */}
         <View style={styles.previewCard}>
           <View style={styles.previewHeader}>
-            <Text style={styles.previewTitle}>Active Goals</Text>
+            <Text style={styles.previewTitle}>Recent Goals</Text>
             <TouchableOpacity onPress={() => setCurrentView('goals')}>
               <Text style={styles.viewAllText}>View All</Text>
             </TouchableOpacity>
           </View>
           
-          {inProgressGoals.slice(0, 3).map((goal) => (
+          {/* Daily Goals Preview */}
+          {goalsLibrary.slice(0, 2).map((goal) => (
+            <View key={goal.id} style={styles.miniGoalItem}>
+              <View style={[styles.goalDot, { backgroundColor: COLORS.primary[500] }]} />
+              <View style={styles.miniGoalContent}>
+                <Text style={styles.miniGoalText}>{goal.title}</Text>
+                <Text style={styles.miniGoalType}>Daily Goal</Text>
+              </View>
+            </View>
+          ))}
+
+          {/* Long-term Goals Preview */}
+          {inProgressGoals.slice(0, 2).map((goal) => (
             <View key={goal.id} style={styles.miniGoalItem}>
               <View style={[styles.goalDot, { backgroundColor: goal.color }]} />
               <View style={styles.miniGoalContent}>
@@ -178,10 +223,6 @@ export default function PlanningScreen() {
   );
 
   const renderHabits = () => {
-    const filteredHabits = selectedCategory === 'all' 
-      ? activeHabits
-      : activeHabits.filter(habit => habit.category === selectedCategory);
-
     return (
       <>
         {/* Category Filter */}
@@ -266,39 +307,224 @@ export default function PlanningScreen() {
     );
   };
 
-  const renderGoals = () => (
-    <ScrollView
-      style={styles.scrollContent}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
-      {longTermGoals.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Target size={48} color={COLORS.neutral[400]} />
-          <Text style={styles.emptyStateText}>No long-term goals yet</Text>
-          <Text style={styles.emptyStateSubtext}>
-            Set meaningful goals to work towards your aspirations
-          </Text>
-        </View>
-      ) : (
-        longTermGoals.map((goal, index) => (
-          <Animated.View
-            key={goal.id}
-            entering={FadeInDown.delay(index * 100).springify()}
+  const renderGoals = () => {
+    const [goalView, setGoalView] = useState<'all' | 'daily' | 'longterm'>('all');
+
+    const renderGoalViewSelector = () => (
+      <View style={styles.goalViewSelector}>
+        {[
+          { id: 'all', label: 'All Goals' },
+          { id: 'daily', label: 'Daily Goals' },
+          { id: 'longterm', label: 'Long-term' },
+        ].map(({ id, label }) => (
+          <TouchableOpacity
+            key={id}
+            style={[
+              styles.goalViewTab,
+              goalView === id && styles.activeGoalViewTab
+            ]}
+            onPress={() => setGoalView(id as any)}
           >
-            <LongTermGoalCard
-              goal={goal}
-              onToggleSubtask={(subtaskId) => toggleSubtask(goal.id, subtaskId)}
-              onEdit={() => router.push({
-                pathname: '/modals/edit-long-term-goal',
-                params: { goalId: goal.id }
-              })}
-            />
-          </Animated.View>
-        ))
-      )}
-    </ScrollView>
-  );
+            <Text style={[
+              styles.goalViewTabText,
+              goalView === id && styles.activeGoalViewTabText
+            ]}>
+              {label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+
+    return (
+      <>
+        {renderGoalViewSelector()}
+        
+        {/* Category Filter for Long-term Goals */}
+        {(goalView === 'longterm' || goalView === 'all') && (
+          <View style={styles.categoryFilter}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryScrollContent}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.categoryChip,
+                  selectedCategory === 'all' && styles.selectedCategoryChip
+                ]}
+                onPress={() => setSelectedCategory('all')}
+              >
+                <Text style={[
+                  styles.categoryChipText,
+                  selectedCategory === 'all' && styles.selectedCategoryChipText
+                ]}>
+                  All
+                </Text>
+              </TouchableOpacity>
+              
+              {GOAL_CATEGORIES.map((category) => (
+                <TouchableOpacity
+                  key={category.id}
+                  style={[
+                    styles.categoryChip,
+                    selectedCategory === category.id && styles.selectedCategoryChip
+                  ]}
+                  onPress={() => setSelectedCategory(category.id)}
+                >
+                  <Text style={[
+                    styles.categoryChipText,
+                    selectedCategory === category.id && styles.selectedCategoryChipText
+                  ]}>
+                    {category.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        <ScrollView
+          style={styles.scrollContent}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Daily Goals Section */}
+          {(goalView === 'all' || goalView === 'daily') && (
+            <>
+              {goalView === 'all' && filteredDailyGoals.length > 0 && (
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Daily Goals</Text>
+                  <TouchableOpacity onPress={() => setGoalView('daily')}>
+                    <Text style={styles.viewAllText}>View All</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              
+              {goalView === 'daily' && (
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>
+                    Daily Goals ({filteredDailyGoals.length})
+                  </Text>
+                  <Text style={styles.sectionSubtitle}>
+                    Goals for your daily planning
+                  </Text>
+                </View>
+              )}
+
+              {filteredDailyGoals.length === 0 && goalView === 'daily' ? (
+                <View style={styles.emptyState}>
+                  <ListTodo size={48} color={COLORS.neutral[400]} />
+                  <Text style={styles.emptyStateText}>No daily goals yet</Text>
+                  <Text style={styles.emptyStateSubtext}>
+                    Create daily goals to organize your day-to-day tasks
+                  </Text>
+                </View>
+              ) : (
+                (goalView === 'daily' ? filteredDailyGoals : filteredDailyGoals.slice(0, 3)).map((goal, index) => (
+                  <Animated.View
+                    key={goal.id}
+                    entering={FadeInDown.delay(index * 50).springify()}
+                    style={styles.goalCard}
+                  >
+                    <GoalItem
+                      goal={goal}
+                      onToggleComplete={(goalId) => {
+                        if (goal.completed) {
+                          uncompleteGoal(goalId);
+                        } else {
+                          completeGoal(goalId);
+                        }
+                      }}
+                      onSetTimer={() => setTimerForGoal(goal.id)}
+                      showTimer={false}
+                      showSchedule={false}
+                    />
+                    
+                    <View style={styles.goalActions}>
+                      <View style={styles.actionButtons}>
+                        <TouchableOpacity
+                          style={styles.actionButton}
+                          onPress={() => handleEditDailyGoal(goal.id)}
+                        >
+                          <Text style={styles.actionButtonText}>Edit</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.actionButton, styles.deleteButton]}
+                          onPress={() => deleteGoal(goal.id)}
+                        >
+                          <Text style={styles.deleteButtonText}>Delete</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </Animated.View>
+                ))
+              )}
+            </>
+          )}
+
+          {/* Long-term Goals Section */}
+          {(goalView === 'all' || goalView === 'longterm') && (
+            <>
+              {goalView === 'all' && filteredLongTermGoals.length > 0 && (
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Long-term Goals</Text>
+                  <TouchableOpacity onPress={() => setGoalView('longterm')}>
+                    <Text style={styles.viewAllText}>View All</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {goalView === 'longterm' && (
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>
+                    Long-term Goals ({filteredLongTermGoals.length})
+                  </Text>
+                  <Text style={styles.sectionSubtitle}>
+                    Your bigger aspirations and projects
+                  </Text>
+                </View>
+              )}
+
+              {filteredLongTermGoals.length === 0 && goalView === 'longterm' ? (
+                <View style={styles.emptyState}>
+                  <Target size={48} color={COLORS.neutral[400]} />
+                  <Text style={styles.emptyStateText}>No long-term goals yet</Text>
+                  <Text style={styles.emptyStateSubtext}>
+                    Set meaningful long-term goals to work towards your aspirations
+                  </Text>
+                </View>
+              ) : (
+                (goalView === 'longterm' ? filteredLongTermGoals : filteredLongTermGoals.slice(0, 2)).map((goal, index) => (
+                  <Animated.View
+                    key={goal.id}
+                    entering={FadeInDown.delay((goalView === 'all' ? filteredDailyGoals.length : 0) + index * 100).springify()}
+                  >
+                    <LongTermGoalCard
+                      goal={goal}
+                      onToggleSubtask={(subtaskId) => toggleSubtask(goal.id, subtaskId)}
+                      onEdit={() => handleEditLongTermGoal(goal.id)}
+                    />
+                  </Animated.View>
+                ))
+              )}
+            </>
+          )}
+
+          {/* Empty State for All Goals */}
+          {goalView === 'all' && filteredDailyGoals.length === 0 && filteredLongTermGoals.length === 0 && (
+            <View style={styles.emptyState}>
+              <Target size={48} color={COLORS.neutral[400]} />
+              <Text style={styles.emptyStateText}>No goals yet</Text>
+              <Text style={styles.emptyStateSubtext}>
+                Start by creating your first goal to organize your aspirations
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      </>
+    );
+  };
 
   const renderWorkouts = () => (
     <ScrollView
@@ -342,7 +568,7 @@ export default function PlanningScreen() {
       case 'habits':
         return '/modals/add-habit';
       case 'goals':
-        return '/modals/add-long-term-goal';
+        return null; // Show choice modal for goals
       case 'workouts':
         return '/modals/add-workout';
       default:
@@ -395,6 +621,20 @@ export default function PlanningScreen() {
           ))}
         </View>
       </View>
+
+      {/* Search Bar */}
+      {currentView !== 'overview' && (
+        <View style={styles.searchContainer}>
+          <Search size={18} color={COLORS.neutral[400]} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder={`Search ${currentView}...`}
+            placeholderTextColor={COLORS.neutral[400]}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+      )}
 
       {currentView === 'overview' && renderOverview()}
       {currentView === 'habits' && renderHabits()}
@@ -472,6 +712,63 @@ const styles = StyleSheet.create({
     color: COLORS.neutral[600],
   },
   activeViewTabText: {
+    color: COLORS.white,
+  },
+  searchContainer: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    height: 44,
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: COLORS.neutral[900],
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    color: COLORS.neutral[800],
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+  },
+  goalViewSelector: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.neutral[100],
+    borderRadius: 8,
+    padding: 4,
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  goalViewTab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  activeGoalViewTab: {
+    backgroundColor: COLORS.primary[600],
+  },
+  goalViewTabText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.neutral[600],
+  },
+  activeGoalViewTabText: {
     color: COLORS.white,
   },
   scrollContent: {
@@ -638,11 +935,17 @@ const styles = StyleSheet.create({
     color: COLORS.neutral[700],
     marginBottom: 4,
   },
+  miniGoalType: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.neutral[500],
+  },
   miniProgressBar: {
     height: 4,
     backgroundColor: COLORS.neutral[200],
     borderRadius: 2,
     overflow: 'hidden',
+    marginTop: 4,
   },
   miniProgressFill: {
     height: '100%',
@@ -680,6 +983,65 @@ const styles = StyleSheet.create({
   },
   selectedCategoryChipText: {
     color: COLORS.white,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[500],
+    marginTop: 2,
+  },
+  goalCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: COLORS.neutral[900],
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  goalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.neutral[200],
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: COLORS.neutral[100],
+  },
+  deleteButton: {
+    backgroundColor: COLORS.error[100],
+  },
+  actionButtonText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.neutral[700],
+  },
+  deleteButtonText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.error[700],
   },
   emptyState: {
     alignItems: 'center',
