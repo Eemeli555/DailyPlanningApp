@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { View, StyleSheet } from 'react-native';
-import { Chrome as Home, Target, Repeat, BookOpen, TrendingUp } from 'lucide-react-native';
+import { Chrome as Home, Target, BookOpen, Calendar, TrendingUp } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '@/constants/theme';
 
@@ -40,18 +40,9 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="habits"
+        name="planning"
         options={{
-          title: 'Habits',
-          tabBarIcon: ({ color, size }) => (
-            <Repeat size={size - 2} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="goals"
-        options={{
-          title: 'Goals',
+          title: 'Planning',
           tabBarIcon: ({ color, size }) => (
             <Target size={size - 2} color={color} />
           ),
@@ -67,9 +58,18 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="calendar"
+        options={{
+          title: 'Calendar',
+          tabBarIcon: ({ color, size }) => (
+            <Calendar size={size - 2} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="stats"
         options={{
-          title: 'Progress',
+          title: 'Stats',
           tabBarIcon: ({ color, size }) => (
             <TrendingUp size={size - 2} color={color} />
           ),
