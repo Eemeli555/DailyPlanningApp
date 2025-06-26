@@ -2,7 +2,7 @@ import React, { useState, useContext, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Modal } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { format } from 'date-fns';
-import { ChevronLeft, ChevronRight, Moon, Star, Heart, CheckCircle, X } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Moon, Star, Heart, CircleCheck as CheckCircle, X } from 'lucide-react-native';
 import Animated, { FadeInRight, FadeOutLeft, FadeInDown } from 'react-native-reanimated';
 import Slider from '@react-native-community/slider';
 
