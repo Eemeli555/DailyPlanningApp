@@ -15,6 +15,7 @@ import ProgressBar from '@/components/ProgressBar';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import DailyScheduleOverview from '@/components/DailyScheduleOverview';
 import ScheduleGoalModal from '@/components/ScheduleGoalModal';
+import CreateChoiceModal from '@/components/CreateChoiceModal';
 import { getCompletionStatus } from '@/utils/helpers';
 
 export default function TodayScreen() {
@@ -40,6 +41,7 @@ export default function TodayScreen() {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [selectedGoalForScheduling, setSelectedGoalForScheduling] = useState<Goal | null>(null);
   const [showAchievementModal, setShowAchievementModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   
   const today = new Date();
   const todayFormatted = format(today, 'EEEE, MMMM d');
@@ -322,7 +324,7 @@ export default function TodayScreen() {
       
       <FloatingActionButton 
         icon={<Plus size={24} color={COLORS.white} />}
-        onPress={() => router.push('/modals/add-goal')}
+        onPress={() => setShowCreateModal(true)}
       />
 
       <ScheduleGoalModal
@@ -334,6 +336,11 @@ export default function TodayScreen() {
         }}
         onSchedule={handleScheduleConfirm}
         selectedDate={today}
+      />
+
+      <CreateChoiceModal
+        visible={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
       />
 
       {/* Achievement Modal */}

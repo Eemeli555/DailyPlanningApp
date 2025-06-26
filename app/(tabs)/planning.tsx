@@ -10,8 +10,9 @@ import { COLORS } from '@/constants/theme';
 import { HABIT_CATEGORIES, GOAL_CATEGORIES } from '@/constants/gamification';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import HabitCard from '@/components/HabitCard';
-import LongTermGoalCard from '../../components/LongTermGoalCard';
+import LongTermGoalCard from '@/components/LongTermGoalCard';
 import GoalItem from '@/components/GoalItem';
+import CreateChoiceModal from '@/components/CreateChoiceModal';
 
 type PlanningView = 'overview' | 'habits' | 'goals' | 'workouts';
 
@@ -32,6 +33,7 @@ export default function PlanningScreen() {
   
   const [currentView, setCurrentView] = useState<PlanningView>('overview');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [showCreateModal, setShowCreateModal] = useState(false);
   
   const today = new Date().toISOString().split('T')[0];
   const todayEntries = habitEntries.filter(entry => entry.date === today);
@@ -344,7 +346,16 @@ export default function PlanningScreen() {
       case 'workouts':
         return '/modals/add-workout';
       default:
-        return '/modals/add-habit';
+        return null; // Show choice modal for overview
+    }
+  };
+
+  const handleFloatingActionPress = () => {
+    const route = getFloatingActionRoute();
+    if (route) {
+      router.push(route as any);
+    } else {
+      setShowCreateModal(true);
     }
   };
 
@@ -392,7 +403,12 @@ export default function PlanningScreen() {
       
       <FloatingActionButton
         icon={<Plus size={24} color={COLORS.white} />}
-        onPress={() => router.push(getFloatingActionRoute())}
+        onPress={handleFloatingActionPress}
+      />
+
+      <CreateChoiceModal
+        visible={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
       />
     </View>
   );
