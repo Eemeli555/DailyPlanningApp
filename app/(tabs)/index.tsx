@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Modal, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
 import { Plus, Calendar, CircleCheck as CheckCircle2, Clock, Star, Zap, Trophy, Target, Repeat } from 'lucide-react-native';
@@ -19,6 +19,10 @@ import CreateChoiceModal from '@/components/CreateChoiceModal';
 import HabitCard from '@/components/HabitCard';
 import { getCompletionStatus } from '@/utils/helpers';
 import { calculateHabitStreak } from '@/utils/gamification';
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const isSmallScreen = screenWidth < 375;
+const isTablet = screenWidth > 768;
 
 export default function TodayScreen() {
   const insets = useSafeAreaInsets();
@@ -129,7 +133,7 @@ export default function TodayScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <View>
+          <View style={styles.headerContent}>
             <Text style={styles.greeting}>{getGreeting()}</Text>
             <Text style={styles.title}>Today's Focus</Text>
           </View>
@@ -144,29 +148,31 @@ export default function TodayScreen() {
         </View>
         
         {/* Progress Overview */}
-        <View style={styles.progressSection}>
-          <View style={styles.progressCard}>
+        <View style={[styles.progressSection, isSmallScreen && styles.progressSectionSmall]}>
+          <View style={[styles.progressCard, isSmallScreen && styles.progressCardSmall]}>
             <Text style={styles.progressTitle}>Goals</Text>
-            <Text style={styles.progressNumber}>
+            <Text style={[styles.progressNumber, isSmallScreen && styles.progressNumberSmall]}>
               {Math.round(progressToday * 100)}%
             </Text>
-            <ProgressBar progress={progressToday} height={4} />
+            <ProgressBar progress={progressToday} height={isSmallScreen ? 3 : 4} />
           </View>
           
-          <View style={styles.progressCard}>
+          <View style={[styles.progressCard, isSmallScreen && styles.progressCardSmall]}>
             <Text style={styles.progressTitle}>Habits</Text>
-            <Text style={styles.progressNumber}>
+            <Text style={[styles.progressNumber, isSmallScreen && styles.progressNumberSmall]}>
               {Math.round(habitProgress * 100)}%
             </Text>
-            <ProgressBar progress={habitProgress} height={4} />
+            <ProgressBar progress={habitProgress} height={isSmallScreen ? 3 : 4} />
           </View>
           
           <TouchableOpacity 
-            style={styles.xpCard}
+            style={[styles.xpCard, isSmallScreen && styles.xpCardSmall]}
             onPress={() => router.push('/profile')}
           >
-            <Star size={16} color={COLORS.warning[600]} />
-            <Text style={styles.xpText}>{userProfile?.xp || 0} XP</Text>
+            <Star size={isSmallScreen ? 12 : 16} color={COLORS.warning[600]} />
+            <Text style={[styles.xpText, isSmallScreen && styles.xpTextSmall]}>
+              {userProfile?.xp || 0} XP
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -187,7 +193,7 @@ export default function TodayScreen() {
 
       <ScrollView 
         style={styles.scrollContent}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: 100 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Daily Challenge */}
@@ -249,8 +255,6 @@ export default function TodayScreen() {
           </Animated.View>
         )}
 
-       
-        
         {/* Compact Daily Schedule Overview */}
         <DailyScheduleOverview 
           goals={regularGoals} 
@@ -264,32 +268,38 @@ export default function TodayScreen() {
         {/* Quick Actions */}
         <View style={styles.quickActionsSection}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.quickActionsGrid}>
+          <View style={[styles.quickActionsGrid, isSmallScreen && styles.quickActionsGridSmall]}>
             <TouchableOpacity 
-              style={styles.quickActionCard}
+              style={[styles.quickActionCard, isSmallScreen && styles.quickActionCardSmall]}
               onPress={() => router.push('/modals/add-goal')}
             >
-              <Target size={20} color={COLORS.primary[600]} />
-              <Text style={styles.quickActionText}>Add Goal</Text>
+              <Target size={isSmallScreen ? 18 : 20} color={COLORS.primary[600]} />
+              <Text style={[styles.quickActionText, isSmallScreen && styles.quickActionTextSmall]}>
+                Add Goal
+              </Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={styles.quickActionCard}
+              style={[styles.quickActionCard, isSmallScreen && styles.quickActionCardSmall]}
               onPress={() => router.push('/modals/add-habit')}
             >
-              <Plus size={20} color={COLORS.accent[600]} />
-              <Text style={styles.quickActionText}>Add Habit</Text>
+              <Plus size={isSmallScreen ? 18 : 20} color={COLORS.accent[600]} />
+              <Text style={[styles.quickActionText, isSmallScreen && styles.quickActionTextSmall]}>
+                Add Habit
+              </Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={styles.quickActionCard}
+              style={[styles.quickActionCard, isSmallScreen && styles.quickActionCardSmall]}
               onPress={() => router.push({
                 pathname: '/modals/journal-entry',
                 params: { date: todayStr, mode: 'create' }
               })}
             >
-              <CheckCircle2 size={20} color={COLORS.success[600]} />
-              <Text style={styles.quickActionText}>Journal</Text>
+              <CheckCircle2 size={isSmallScreen ? 18 : 20} color={COLORS.success[600]} />
+              <Text style={[styles.quickActionText, isSmallScreen && styles.quickActionTextSmall]}>
+                Journal
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -432,7 +442,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.neutral[50],
   },
   header: {
-    paddingHorizontal: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
     paddingTop: 16,
     paddingBottom: 12,
     backgroundColor: COLORS.white,
@@ -453,35 +463,38 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 16,
   },
+  headerContent: {
+    flex: 1,
+  },
   greeting: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     color: COLORS.neutral[500],
     fontFamily: 'Inter-Regular',
   },
   title: {
-    fontSize: 24,
+    fontSize: isSmallScreen ? 22 : 24,
     fontFamily: 'Inter-Bold',
     color: COLORS.neutral[900],
     marginTop: 2,
   },
   profileButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: isSmallScreen ? 36 : 40,
+    height: isSmallScreen ? 36 : 40,
+    borderRadius: isSmallScreen ? 18 : 20,
     backgroundColor: COLORS.primary[50],
     justifyContent: 'center',
     alignItems: 'center',
   },
   levelBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: isSmallScreen ? 28 : 32,
+    height: isSmallScreen ? 28 : 32,
+    borderRadius: isSmallScreen ? 14 : 16,
     backgroundColor: COLORS.primary[600],
     justifyContent: 'center',
     alignItems: 'center',
   },
   levelText: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 12 : 14,
     fontFamily: 'Inter-Bold',
     color: COLORS.white,
   },
@@ -490,6 +503,9 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 8,
   },
+  progressSectionSmall: {
+    gap: 8,
+  },
   progressCard: {
     flex: 1,
     backgroundColor: COLORS.neutral[50],
@@ -497,17 +513,25 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: 'center',
   },
+  progressCardSmall: {
+    padding: 10,
+    borderRadius: 10,
+  },
   progressTitle: {
-    fontSize: 12,
+    fontSize: isSmallScreen ? 11 : 12,
     fontFamily: 'Inter-Medium',
     color: COLORS.neutral[600],
     marginBottom: 4,
   },
   progressNumber: {
-    fontSize: 18,
+    fontSize: isSmallScreen ? 16 : 18,
     fontFamily: 'Inter-Bold',
     color: COLORS.neutral[800],
     marginBottom: 8,
+  },
+  progressNumberSmall: {
+    fontSize: 16,
+    marginBottom: 6,
   },
   xpCard: {
     backgroundColor: COLORS.warning[50],
@@ -515,14 +539,23 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 80,
+    minWidth: isSmallScreen ? 70 : 80,
     flexDirection: 'row',
     gap: 4,
   },
+  xpCardSmall: {
+    padding: 10,
+    borderRadius: 10,
+    minWidth: 70,
+    gap: 3,
+  },
   xpText: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     fontFamily: 'Inter-Bold',
     color: COLORS.warning[700],
+  },
+  xpTextSmall: {
+    fontSize: 13,
   },
   currentActivityCard: {
     backgroundColor: COLORS.accent[50],
@@ -559,7 +592,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.warning[50],
     borderRadius: 16,
     padding: 16,
-    marginHorizontal: 20,
+    marginHorizontal: isSmallScreen ? 16 : 20,
     marginTop: 12,
     borderLeftWidth: 4,
     borderLeftColor: COLORS.warning[500],
@@ -570,9 +603,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   challengeIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: isSmallScreen ? 36 : 40,
+    height: isSmallScreen ? 36 : 40,
+    borderRadius: isSmallScreen ? 18 : 20,
     backgroundColor: COLORS.warning[100],
     justifyContent: 'center',
     alignItems: 'center',
@@ -582,12 +615,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   challengeTitle: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 15 : 16,
     fontFamily: 'Inter-SemiBold',
     color: COLORS.warning[800],
   },
   challengeDescription: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     fontFamily: 'Inter-Regular',
     color: COLORS.warning[700],
     marginTop: 2,
@@ -607,7 +640,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.warning[600],
   },
   achievementsSection: {
-    marginHorizontal: 20,
+    marginHorizontal: isSmallScreen ? 16 : 20,
     marginTop: 16,
   },
   sectionHeader: {
@@ -616,7 +649,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 15 : 16,
     fontFamily: 'Inter-SemiBold',
     color: COLORS.neutral[800],
     marginLeft: 8,
@@ -636,7 +669,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     alignItems: 'center',
-    width: 100,
+    width: isSmallScreen ? 90 : 100,
     shadowColor: COLORS.neutral[900],
     shadowOffset: {
       width: 0,
@@ -647,11 +680,11 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   achievementIcon: {
-    fontSize: 24,
+    fontSize: isSmallScreen ? 20 : 24,
     marginBottom: 8,
   },
   achievementTitle: {
-    fontSize: 12,
+    fontSize: isSmallScreen ? 11 : 12,
     fontFamily: 'Inter-SemiBold',
     color: COLORS.neutral[800],
     textAlign: 'center',
@@ -663,7 +696,7 @@ const styles = StyleSheet.create({
     color: COLORS.warning[600],
   },
   habitsSection: {
-    marginHorizontal: 20,
+    marginHorizontal: isSmallScreen ? 16 : 20,
     marginTop: 16,
   },
   habitsContainer: {
@@ -680,13 +713,16 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   quickActionsSection: {
-    marginHorizontal: 20,
+    marginHorizontal: isSmallScreen ? 16 : 20,
     marginTop: 8,
   },
   quickActionsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 12,
+  },
+  quickActionsGridSmall: {
+    gap: 8,
   },
   quickActionCard: {
     flex: 1,
@@ -703,6 +739,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  quickActionCardSmall: {
+    padding: 12,
+    borderRadius: 10,
+  },
   quickActionText: {
     fontSize: 12,
     fontFamily: 'Inter-Medium',
@@ -710,8 +750,12 @@ const styles = StyleSheet.create({
     marginTop: 6,
     textAlign: 'center',
   },
+  quickActionTextSmall: {
+    fontSize: 11,
+    marginTop: 4,
+  },
   unscheduledSection: {
-    marginHorizontal: 20,
+    marginHorizontal: isSmallScreen ? 16 : 20,
     marginTop: 20,
   },
   unscheduledGoalsContainer: {
@@ -731,16 +775,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   quoteSection: {
-    marginHorizontal: 20,
+    marginHorizontal: isSmallScreen ? 16 : 20,
     marginTop: 20,
-    padding: 16,
+    padding: isSmallScreen ? 14 : 16,
     backgroundColor: COLORS.primary[50],
     borderRadius: 12,
     borderLeftWidth: 3,
     borderLeftColor: COLORS.primary[500],
   },
   quoteText: {
-    fontSize: 13,
+    fontSize: isSmallScreen ? 12 : 13,
     fontFamily: 'Inter-Regular',
     color: COLORS.primary[700],
     fontStyle: 'italic',

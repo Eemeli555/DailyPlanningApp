@@ -1,9 +1,12 @@
 import { useContext, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, Switch, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ScrollView, Switch, TouchableOpacity, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/theme';
 import { AppContext } from '@/contexts/AppContext';
 import Button from '@/components/Button';
+
+const { width: screenWidth } = Dimensions.get('window');
+const isSmallScreen = screenWidth < 375;
 
 export default function AddGoalScreen() {
   const router = useRouter();
@@ -33,7 +36,11 @@ export default function AddGoalScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
     >
-      <ScrollView style={styles.scrollContent} contentContainerStyle={styles.content}>
+      <ScrollView 
+        style={styles.scrollContent} 
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.label}>Goal Title *</Text>
         <TextInput
           style={styles.input}
@@ -63,7 +70,8 @@ export default function AddGoalScreen() {
               value={addToToday}
               onValueChange={setAddToToday}
               trackColor={{ false: COLORS.neutral[300], true: COLORS.primary[500] }}
-              thumbColor={COLORS.white}
+              thumbColor={Platform.OS === 'ios' ? COLORS.white : addToToday ? COLORS.primary[200] : COLORS.neutral[100]}
+              ios_backgroundColor={COLORS.neutral[300]}
             />
           </View>
         </View>
@@ -102,7 +110,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 20,
+    padding: isSmallScreen ? 16 : 20,
   },
   label: {
     fontSize: 14,
@@ -118,10 +126,13 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[900],
     marginBottom: 16,
+    borderWidth: Platform.OS === 'ios' ? 1 : 0,
+    borderColor: COLORS.neutral[200],
   },
   textArea: {
     height: 100,
     paddingTop: 12,
+    textAlignVertical: 'top',
   },
   switchContainer: {
     marginVertical: 8,
@@ -150,7 +161,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     flexDirection: 'row',
-    padding: 20,
+    padding: isSmallScreen ? 16 : 20,
     borderTopWidth: 1,
     borderTopColor: COLORS.neutral[200],
     backgroundColor: COLORS.white,

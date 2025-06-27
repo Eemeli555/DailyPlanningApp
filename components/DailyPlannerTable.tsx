@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Dimensions, Platform } from 'react-native';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addDays, subDays, isToday, isSameMonth } from 'date-fns';
 import { ChevronLeft, ChevronRight, Plus, Settings, CreditCard as Edit3, Star, Calendar } from 'lucide-react-native';
 import { AppContext } from '@/contexts/AppContext';
@@ -14,6 +14,7 @@ interface DailyPlannerTableProps {
 
 const { width: screenWidth } = Dimensions.get('window');
 const isTablet = screenWidth > 768;
+const isSmallScreen = screenWidth < 375;
 
 const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps) => {
   const { 
@@ -718,7 +719,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.neutral[200],
@@ -740,9 +741,11 @@ const styles = StyleSheet.create({
   tableContainer: {
     flex: 1,
     backgroundColor: COLORS.neutral[50],
+    width: '100%',
   },
   horizontalScrollView: {
     flex: 1,
+    width: '100%',
   },
   horizontalScrollContent: {
     minWidth: '100%',

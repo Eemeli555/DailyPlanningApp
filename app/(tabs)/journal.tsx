@@ -1,5 +1,5 @@
 import { useContext, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Plus, Calendar, Sunrise, Sunset, CreditCard as Edit, BookOpen, Moon, Clock, Sun, Brain, Heart, Zap, Target, Activity, Droplets } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -11,6 +11,9 @@ import { COLORS } from '@/constants/theme';
 import { MOOD_LABELS } from '@/constants/gamification';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import MoodChart from '@/components/MoodChart';
+
+const { width: screenWidth } = Dimensions.get('window');
+const isSmallScreen = screenWidth < 375;
 
 export default function JournalScreen() {
   const insets = useSafeAreaInsets();
@@ -105,88 +108,106 @@ export default function JournalScreen() {
         </View>
         
         {/* Today's Status */}
-        <View style={styles.todaySection}>
+        <View style={[styles.todaySection, isSmallScreen && styles.todaySectionSmall]}>
           {/* Morning Entry */}
           {todayMorningEntry ? (
             <TouchableOpacity 
-              style={styles.entryCard}
+              style={[styles.entryCard, isSmallScreen && styles.entryCardSmall]}
               onPress={() => router.push({
                 pathname: '/modals/journal-entry',
                 params: { date: today, mode: 'edit' }
               })}
             >
               <View style={styles.entryHeader}>
-                <Sun size={16} color={COLORS.warning[600]} />
-                <Text style={styles.entryTitle}>Morning Entry</Text>
-                <Edit size={14} color={COLORS.primary[600]} />
+                <Sun size={isSmallScreen ? 14 : 16} color={COLORS.warning[600]} />
+                <Text style={[styles.entryTitle, isSmallScreen && styles.entryTitleSmall]}>
+                  Morning Entry
+                </Text>
+                <Edit size={isSmallScreen ? 12 : 14} color={COLORS.primary[600]} />
               </View>
               {todayMorningEntry.mainFocus && (
-                <Text style={styles.entryPreview} numberOfLines={1}>
+                <Text style={[styles.entryPreview, isSmallScreen && styles.entryPreviewSmall]} numberOfLines={1}>
                   Focus: {todayMorningEntry.mainFocus}
                 </Text>
               )}
               {todayMorningEntry.sleepHours && (
-                <Text style={styles.entryMeta}>
+                <Text style={[styles.entryMeta, isSmallScreen && styles.entryMetaSmall]}>
                   {todayMorningEntry.sleepHours}h sleep • Quality: {todayMorningEntry.sleepQuality}/10
                 </Text>
               )}
             </TouchableOpacity>
           ) : shouldShowMorningQuiz() ? (
             <TouchableOpacity 
-              style={styles.promptCard}
+              style={[styles.promptCard, isSmallScreen && styles.promptCardSmall]}
               onPress={() => router.push({
                 pathname: '/modals/morning-quiz',
                 params: { date: today }
               })}
             >
-              <Sun size={24} color={COLORS.warning[600]} />
-              <Text style={styles.promptTitle}>Start your morning planning</Text>
-              <Text style={styles.promptSubtitle}>Plan your day and set your focus</Text>
+              <Sun size={isSmallScreen ? 20 : 24} color={COLORS.warning[600]} />
+              <Text style={[styles.promptTitle, isSmallScreen && styles.promptTitleSmall]}>
+                Start your morning planning
+              </Text>
+              <Text style={[styles.promptSubtitle, isSmallScreen && styles.promptSubtitleSmall]}>
+                Plan your day and set your focus
+              </Text>
             </TouchableOpacity>
           ) : null}
 
           {/* Evening Entry */}
           {todayEveningEntry ? (
             <TouchableOpacity 
-              style={styles.entryCard}
+              style={[styles.entryCard, isSmallScreen && styles.entryCardSmall]}
               onPress={() => router.push({
                 pathname: '/modals/journal-entry',
                 params: { date: today, mode: 'edit' }
               })}
             >
               <View style={styles.entryHeader}>
-                <Moon size={16} color={COLORS.secondary[600]} />
-                <Text style={styles.entryTitle}>Evening Entry</Text>
-                <Edit size={14} color={COLORS.primary[600]} />
+                <Moon size={isSmallScreen ? 14 : 16} color={COLORS.secondary[600]} />
+                <Text style={[styles.entryTitle, isSmallScreen && styles.entryTitleSmall]}>
+                  Evening Entry
+                </Text>
+                <Edit size={isSmallScreen ? 12 : 14} color={COLORS.primary[600]} />
               </View>
               <View style={styles.moodDisplay}>
                 <Text style={styles.moodEmoji}>{getMoodEmoji(todayEveningEntry.mood)}</Text>
-                <Text style={styles.moodText}>{getMoodLabel(todayEveningEntry.mood)}</Text>
+                <Text style={[styles.moodText, isSmallScreen && styles.moodTextSmall]}>
+                  {getMoodLabel(todayEveningEntry.mood)}
+                </Text>
               </View>
               {todayEveningEntry.reflection && (
-                <Text style={styles.entryPreview} numberOfLines={2}>
+                <Text style={[styles.entryPreview, isSmallScreen && styles.entryPreviewSmall]} numberOfLines={2}>
                   {todayEveningEntry.reflection}
                 </Text>
               )}
             </TouchableOpacity>
           ) : shouldShowEveningQuiz() ? (
             <TouchableOpacity 
-              style={styles.promptCard}
+              style={[styles.promptCard, isSmallScreen && styles.promptCardSmall]}
               onPress={() => router.push({
                 pathname: '/modals/evening-quiz',
                 params: { date: today }
               })}
             >
-              <Moon size={24} color={COLORS.secondary[600]} />
-              <Text style={styles.promptTitle}>Evening reflection time</Text>
-              <Text style={styles.promptSubtitle}>Reflect on your day</Text>
+              <Moon size={isSmallScreen ? 20 : 24} color={COLORS.secondary[600]} />
+              <Text style={[styles.promptTitle, isSmallScreen && styles.promptTitleSmall]}>
+                Evening reflection time
+              </Text>
+              <Text style={[styles.promptSubtitle, isSmallScreen && styles.promptSubtitleSmall]}>
+                Reflect on your day
+              </Text>
             </TouchableOpacity>
           ) : null}
           
           {/* Streak Card */}
-          <View style={styles.streakCard}>
-            <Text style={styles.streakNumber}>{journalStreak}</Text>
-            <Text style={styles.streakLabel}>Day Streak</Text>
+          <View style={[styles.streakCard, isSmallScreen && styles.streakCardSmall]}>
+            <Text style={[styles.streakNumber, isSmallScreen && styles.streakNumberSmall]}>
+              {journalStreak}
+            </Text>
+            <Text style={[styles.streakLabel, isSmallScreen && styles.streakLabelSmall]}>
+              Day Streak
+            </Text>
           </View>
         </View>
 
@@ -194,38 +215,58 @@ export default function JournalScreen() {
         {(todaySleep || todaySocial || todayMorningEntry || todayEveningEntry) && (
           <View style={styles.todayDataSection}>
             <Text style={styles.todayDataTitle}>Today's Data</Text>
-            <View style={styles.todayDataGrid}>
+            <View style={[styles.todayDataGrid, isSmallScreen && styles.todayDataGridSmall]}>
               {todaySleep && (
-                <View style={styles.dataCard}>
-                  <Brain size={16} color={COLORS.accent[600]} />
-                  <Text style={styles.dataValue}>{todaySleep.hoursSlept}h</Text>
-                  <Text style={styles.dataLabel}>Sleep</Text>
-                  <Text style={styles.dataSubtext}>Quality: {todaySleep.quality}/10</Text>
+                <View style={[styles.dataCard, isSmallScreen && styles.dataCardSmall]}>
+                  <Brain size={isSmallScreen ? 14 : 16} color={COLORS.accent[600]} />
+                  <Text style={[styles.dataValue, isSmallScreen && styles.dataValueSmall]}>
+                    {todaySleep.hoursSlept}h
+                  </Text>
+                  <Text style={[styles.dataLabel, isSmallScreen && styles.dataLabelSmall]}>
+                    Sleep
+                  </Text>
+                  <Text style={[styles.dataSubtext, isSmallScreen && styles.dataSubtextSmall]}>
+                    Quality: {todaySleep.quality}/10
+                  </Text>
                 </View>
               )}
               
               {todayMorningEntry?.mood && (
-                <View style={styles.dataCard}>
-                  <Heart size={16} color={COLORS.error[500]} />
-                  <Text style={styles.dataValue}>{todayMorningEntry.mood}/5</Text>
-                  <Text style={styles.dataLabel}>Morning Mood</Text>
+                <View style={[styles.dataCard, isSmallScreen && styles.dataCardSmall]}>
+                  <Heart size={isSmallScreen ? 14 : 16} color={COLORS.error[500]} />
+                  <Text style={[styles.dataValue, isSmallScreen && styles.dataValueSmall]}>
+                    {todayMorningEntry.mood}/5
+                  </Text>
+                  <Text style={[styles.dataLabel, isSmallScreen && styles.dataLabelSmall]}>
+                    Morning Mood
+                  </Text>
                 </View>
               )}
               
               {todayEveningEntry?.mood && (
-                <View style={styles.dataCard}>
-                  <Moon size={16} color={COLORS.secondary[600]} />
-                  <Text style={styles.dataValue}>{todayEveningEntry.mood}/5</Text>
-                  <Text style={styles.dataLabel}>Evening Mood</Text>
+                <View style={[styles.dataCard, isSmallScreen && styles.dataCardSmall]}>
+                  <Moon size={isSmallScreen ? 14 : 16} color={COLORS.secondary[600]} />
+                  <Text style={[styles.dataValue, isSmallScreen && styles.dataValueSmall]}>
+                    {todayEveningEntry.mood}/5
+                  </Text>
+                  <Text style={[styles.dataLabel, isSmallScreen && styles.dataLabelSmall]}>
+                    Evening Mood
+                  </Text>
                 </View>
               )}
               
               {todaySocial && (
-                <View style={styles.dataCard}>
-                  <Zap size={16} color={COLORS.warning[600]} />
-                  <Text style={styles.dataValue}>{Math.round(todaySocial.totalMinutes / 60)}h</Text>
-                  <Text style={styles.dataLabel}>Screen Time</Text>
-                  <Text style={styles.dataSubtext}>{todaySocial.totalMinutes}m total</Text>
+                <View style={[styles.dataCard, isSmallScreen && styles.dataCardSmall]}>
+                  <Zap size={isSmallScreen ? 14 : 16} color={COLORS.warning[600]} />
+                  <Text style={[styles.dataValue, isSmallScreen && styles.dataValueSmall]}>
+                    {Math.round(todaySocial.totalMinutes / 60)}h
+                  </Text>
+                  <Text style={[styles.dataLabel, isSmallScreen && styles.dataLabelSmall]}>
+                    Screen Time
+                  </Text>
+                  <Text style={[styles.dataSubtext, isSmallScreen && styles.dataSubtextSmall]}>
+                    {todaySocial.totalMinutes}m total
+                  </Text>
                 </View>
               )}
             </View>
@@ -235,7 +276,7 @@ export default function JournalScreen() {
 
       <ScrollView
         style={styles.scrollContent}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: 100 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Mood Chart */}
@@ -484,7 +525,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.neutral[50],
   },
   header: {
-    paddingHorizontal: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
     paddingTop: 16,
     paddingBottom: 12,
     backgroundColor: COLORS.white,
@@ -506,20 +547,20 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   greeting: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     color: COLORS.neutral[500],
     fontFamily: 'Inter-Regular',
   },
   title: {
-    fontSize: 24,
+    fontSize: isSmallScreen ? 22 : 24,
     fontFamily: 'Inter-Bold',
     color: COLORS.neutral[900],
     marginTop: 2,
   },
   calendarButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: isSmallScreen ? 36 : 40,
+    height: isSmallScreen ? 36 : 40,
+    borderRadius: isSmallScreen ? 18 : 20,
     backgroundColor: COLORS.primary[50],
     justifyContent: 'center',
     alignItems: 'center',
@@ -528,6 +569,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginBottom: 16,
+  },
+  todaySectionSmall: {
+    gap: 8,
   },
   entryCard: {
     flex: 1,
@@ -544,6 +588,10 @@ const styles = StyleSheet.create({
     elevation: 2,
     marginBottom: 12,
   },
+  entryCardSmall: {
+    padding: 10,
+    borderRadius: 10,
+  },
   entryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -556,6 +604,9 @@ const styles = StyleSheet.create({
     color: COLORS.neutral[700],
     flex: 1,
     marginLeft: 6,
+  },
+  entryTitleSmall: {
+    fontSize: 11,
   },
   entryTypeIndicator: {
     marginRight: 8,
@@ -573,17 +624,27 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
     color: COLORS.neutral[600],
   },
+  moodTextSmall: {
+    fontSize: 11,
+  },
   entryPreview: {
     fontSize: 11,
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[600],
     lineHeight: 14,
   },
+  entryPreviewSmall: {
+    fontSize: 10,
+    lineHeight: 13,
+  },
   entryMeta: {
     fontSize: 10,
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[500],
     marginTop: 4,
+  },
+  entryMetaSmall: {
+    fontSize: 9,
   },
   promptCard: {
     flex: 1,
@@ -595,12 +656,20 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: COLORS.primary[500],
   },
+  promptCardSmall: {
+    padding: 10,
+    borderRadius: 10,
+  },
   promptTitle: {
     fontSize: 12,
     fontFamily: 'Inter-SemiBold',
     color: COLORS.primary[700],
     marginTop: 6,
     textAlign: 'center',
+  },
+  promptTitleSmall: {
+    fontSize: 11,
+    marginTop: 4,
   },
   promptSubtitle: {
     fontSize: 10,
@@ -609,18 +678,28 @@ const styles = StyleSheet.create({
     marginTop: 2,
     textAlign: 'center',
   },
+  promptSubtitleSmall: {
+    fontSize: 9,
+  },
   streakCard: {
     backgroundColor: COLORS.warning[50],
     borderRadius: 12,
     padding: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 60,
+    minWidth: isSmallScreen ? 50 : 60,
+  },
+  streakCardSmall: {
+    padding: 10,
+    borderRadius: 10,
   },
   streakNumber: {
     fontSize: 20,
     fontFamily: 'Inter-Bold',
     color: COLORS.warning[700],
+  },
+  streakNumberSmall: {
+    fontSize: 18,
   },
   streakLabel: {
     fontSize: 10,
@@ -628,11 +707,14 @@ const styles = StyleSheet.create({
     color: COLORS.warning[600],
     marginTop: 2,
   },
+  streakLabelSmall: {
+    fontSize: 9,
+  },
   todayDataSection: {
     marginTop: 8,
   },
   todayDataTitle: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     fontFamily: 'Inter-SemiBold',
     color: COLORS.neutral[700],
     marginBottom: 12,
@@ -642,6 +724,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
+  todayDataGridSmall: {
+    gap: 6,
+  },
   dataCard: {
     backgroundColor: COLORS.neutral[50],
     borderRadius: 8,
@@ -650,11 +735,18 @@ const styles = StyleSheet.create({
     minWidth: 70,
     flex: 1,
   },
+  dataCardSmall: {
+    padding: 6,
+    borderRadius: 6,
+  },
   dataValue: {
     fontSize: 16,
     fontFamily: 'Inter-Bold',
     color: COLORS.neutral[800],
     marginTop: 4,
+  },
+  dataValueSmall: {
+    fontSize: 14,
   },
   dataLabel: {
     fontSize: 10,
@@ -662,11 +754,17 @@ const styles = StyleSheet.create({
     color: COLORS.neutral[600],
     marginTop: 2,
   },
+  dataLabelSmall: {
+    fontSize: 9,
+  },
   dataSubtext: {
     fontSize: 9,
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[500],
     marginTop: 1,
+  },
+  dataSubtextSmall: {
+    fontSize: 8,
   },
   scrollContent: {
     flex: 1,
@@ -675,17 +773,17 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   chartSection: {
-    marginHorizontal: 20,
+    marginHorizontal: isSmallScreen ? 16 : 20,
     marginTop: 20,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: isSmallScreen ? 17 : 18,
     fontFamily: 'Inter-SemiBold',
     color: COLORS.neutral[800],
     marginBottom: 16,
   },
   entriesSection: {
-    marginHorizontal: 20,
+    marginHorizontal: isSmallScreen ? 16 : 20,
     marginTop: 24,
   },
   emptyState: {

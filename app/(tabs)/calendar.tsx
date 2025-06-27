@@ -1,5 +1,5 @@
 import { useContext, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Dimensions, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isSameDay, addMonths, subMonths, parse, set } from 'date-fns';
 import { ChevronLeft, ChevronRight, Clock, CircleCheck as CheckCircle, Circle, Calendar as CalendarIcon, ChartBar as BarChart3 } from 'lucide-react-native';
@@ -15,7 +15,8 @@ import DailyPlannerTable from '@/components/DailyPlannerTable';
 
 type CalendarView = 'calendar' | 'planner';
 
-const { width: screenWidth } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const isSmallScreen = screenWidth < 375;
 const isTablet = screenWidth > 768;
 
 export default function CalendarScreen() {
@@ -259,42 +260,52 @@ export default function CalendarScreen() {
         
         <ScrollView
           style={styles.scheduleScrollView}
-          contentContainerStyle={styles.scheduleContent}
+          contentContainerStyle={[styles.scheduleContent, { paddingBottom: 100 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Daily Summary Cards */}
-          <View style={styles.summaryCards}>
+          <View style={[styles.summaryCards, isSmallScreen && styles.summaryCardsSmall]}>
             {/* Goals Summary - Only count real goals, not habits */}
             {selectedDayData.plan && (
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryCardTitle}>Goals</Text>
-                <Text style={styles.summaryCardValue}>
+              <View style={[styles.summaryCard, isSmallScreen && styles.summaryCardSmall]}>
+                <Text style={[styles.summaryCardTitle, isSmallScreen && styles.summaryCardTitleSmall]}>
+                  Goals
+                </Text>
+                <Text style={[styles.summaryCardValue, isSmallScreen && styles.summaryCardValueSmall]}>
                   {selectedDayData.plan.goals.filter(g => !g.id.startsWith('habit-') && g.completed).length}/
                   {selectedDayData.plan.goals.filter(g => !g.id.startsWith('habit-')).length}
                 </Text>
-                <Text style={styles.summaryCardLabel}>completed</Text>
+                <Text style={[styles.summaryCardLabel, isSmallScreen && styles.summaryCardLabelSmall]}>
+                  completed
+                </Text>
               </View>
             )}
             
             {/* Habits Summary */}
             {selectedDayData.habits.length > 0 && (
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryCardTitle}>Habits</Text>
-                <Text style={styles.summaryCardValue}>
+              <View style={[styles.summaryCard, isSmallScreen && styles.summaryCardSmall]}>
+                <Text style={[styles.summaryCardTitle, isSmallScreen && styles.summaryCardTitleSmall]}>
+                  Habits
+                </Text>
+                <Text style={[styles.summaryCardValue, isSmallScreen && styles.summaryCardValueSmall]}>
                   {selectedDayData.habits.filter(h => h.completed).length}/{habits.filter(h => h.isActive).length}
                 </Text>
-                <Text style={styles.summaryCardLabel}>completed</Text>
+                <Text style={[styles.summaryCardLabel, isSmallScreen && styles.summaryCardLabelSmall]}>
+                  completed
+                </Text>
               </View>
             )}
             
             {/* Mood Summary */}
             {selectedDayData.journal && (
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryCardTitle}>Mood</Text>
-                <Text style={styles.summaryCardValue}>
+              <View style={[styles.summaryCard, isSmallScreen && styles.summaryCardSmall]}>
+                <Text style={[styles.summaryCardTitle, isSmallScreen && styles.summaryCardTitleSmall]}>
+                  Mood
+                </Text>
+                <Text style={[styles.summaryCardValue, isSmallScreen && styles.summaryCardValueSmall]}>
                   {selectedDayData.journal.mood}/5
                 </Text>
-                <Text style={styles.summaryCardLabel}>
+                <Text style={[styles.summaryCardLabel, isSmallScreen && styles.summaryCardLabelSmall]}>
                   {selectedDayData.journal.mood >= 4 ? '😊' : selectedDayData.journal.mood >= 3 ? '😐' : '😕'}
                 </Text>
               </View>
@@ -302,12 +313,14 @@ export default function CalendarScreen() {
             
             {/* Sleep Summary */}
             {selectedDayData.sleep && (
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryCardTitle}>Sleep</Text>
-                <Text style={styles.summaryCardValue}>
+              <View style={[styles.summaryCard, isSmallScreen && styles.summaryCardSmall]}>
+                <Text style={[styles.summaryCardTitle, isSmallScreen && styles.summaryCardTitleSmall]}>
+                  Sleep
+                </Text>
+                <Text style={[styles.summaryCardValue, isSmallScreen && styles.summaryCardValueSmall]}>
                   {selectedDayData.sleep.hoursSlept}h
                 </Text>
-                <Text style={styles.summaryCardLabel}>
+                <Text style={[styles.summaryCardLabel, isSmallScreen && styles.summaryCardLabelSmall]}>
                   Quality: {selectedDayData.sleep.quality}/10
                 </Text>
               </View>
@@ -591,19 +604,19 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
   header: {
-    paddingHorizontal: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
     paddingTop: 16,
     paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.neutral[200],
   },
   title: {
-    fontSize: 28,
+    fontSize: isSmallScreen ? 26 : 28,
     fontFamily: 'Inter-Bold',
     color: COLORS.neutral[900],
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[500],
     marginTop: 4,
@@ -629,7 +642,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary[600],
   },
   toggleText: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     fontFamily: 'Inter-Medium',
     color: COLORS.neutral[600],
   },
@@ -644,7 +657,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
     marginTop: 16,
     marginBottom: 8,
   },
@@ -685,9 +698,9 @@ const styles = StyleSheet.create({
     height: 60,
   },
   dateCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: isSmallScreen ? 28 : 32,
+    height: isSmallScreen ? 28 : 32,
+    borderRadius: isSmallScreen ? 14 : 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -697,7 +710,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
   },
   calendarDayText: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[800],
   },
@@ -730,7 +743,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
   },
   scheduleHeader: {
-    paddingHorizontal: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
     paddingTop: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,
@@ -740,12 +753,12 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
   },
   selectedDateTitle: {
-    fontSize: 20,
+    fontSize: isSmallScreen ? 18 : 20,
     fontFamily: 'Inter-Bold',
     color: COLORS.neutral[900],
   },
   scheduleSubtitle: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[500],
     marginTop: 4,
@@ -759,9 +772,12 @@ const styles = StyleSheet.create({
   summaryCards: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
     paddingTop: 16,
     gap: 12,
+  },
+  summaryCardsSmall: {
+    gap: 8,
   },
   summaryCard: {
     backgroundColor: COLORS.white,
@@ -779,16 +795,26 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
+  summaryCardSmall: {
+    padding: 10,
+    borderRadius: 10,
+  },
   summaryCardTitle: {
     fontSize: 12,
     fontFamily: 'Inter-Medium',
     color: COLORS.neutral[600],
     marginBottom: 4,
   },
+  summaryCardTitleSmall: {
+    fontSize: 11,
+  },
   summaryCardValue: {
-    fontSize: 18,
+    fontSize: isSmallScreen ? 16 : 18,
     fontFamily: 'Inter-Bold',
     color: COLORS.neutral[800],
+  },
+  summaryCardValueSmall: {
+    fontSize: 16,
   },
   summaryCardLabel: {
     fontSize: 10,
@@ -796,12 +822,15 @@ const styles = StyleSheet.create({
     color: COLORS.neutral[500],
     marginTop: 2,
   },
+  summaryCardLabelSmall: {
+    fontSize: 9,
+  },
   scheduledSection: {
-    paddingHorizontal: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
     paddingTop: 20,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 15 : 16,
     fontFamily: 'Inter-SemiBold',
     color: COLORS.neutral[800],
     marginBottom: 16,
@@ -829,7 +858,7 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   timeColumn: {
-    width: 80,
+    width: isSmallScreen ? 70 : 80,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
@@ -838,7 +867,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 12,
   },
   startTime: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 15 : 16,
     fontFamily: 'Inter-Bold',
     color: COLORS.neutral[800],
   },
@@ -849,7 +878,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   endTime: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[600],
   },
@@ -864,14 +893,14 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   activityTitle: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 15 : 16,
     fontFamily: 'Inter-SemiBold',
     color: COLORS.neutral[900],
     flex: 1,
     marginRight: 8,
   },
   activityDescription: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[600],
     marginBottom: 8,
@@ -895,7 +924,7 @@ const styles = StyleSheet.create({
     color: COLORS.neutral[500],
   },
   unscheduledSection: {
-    paddingHorizontal: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
     paddingTop: 24,
   },
   unscheduledList: {
@@ -936,7 +965,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   habitsSection: {
-    paddingHorizontal: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
     paddingTop: 24,
   },
   habitsList: {
@@ -970,7 +999,7 @@ const styles = StyleSheet.create({
     color: COLORS.neutral[700],
   },
   journalSection: {
-    paddingHorizontal: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
     paddingTop: 24,
   },
   journalCard: {

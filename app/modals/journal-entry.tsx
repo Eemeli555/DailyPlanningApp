@@ -1,5 +1,5 @@
 import { useContext, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { format } from 'date-fns';
 import { Plus, X } from 'lucide-react-native';
@@ -7,6 +7,9 @@ import { COLORS } from '@/constants/theme';
 import { MOOD_LABELS } from '@/constants/gamification';
 import { AppContext } from '@/contexts/AppContext';
 import Button from '@/components/Button';
+
+const { width: screenWidth } = Dimensions.get('window');
+const isSmallScreen = screenWidth < 375;
 
 export default function JournalEntryScreen() {
   const router = useRouter();
@@ -75,7 +78,7 @@ export default function JournalEntryScreen() {
   }) => (
     <View style={styles.selectorContainer}>
       <Text style={styles.selectorTitle}>{title}</Text>
-      <View style={styles.moodButtons}>
+      <View style={[styles.moodButtons, isSmallScreen && styles.moodButtonsSmall]}>
         {[1, 2, 3, 4, 5].map((rating) => {
           const moodData = MOOD_LABELS.find(m => m.value === rating);
           const isSelected = value === rating;
@@ -85,6 +88,7 @@ export default function JournalEntryScreen() {
               key={rating}
               style={[
                 styles.moodButton,
+                isSmallScreen && styles.moodButtonSmall,
                 isSelected && styles.selectedMoodButton,
                 { borderColor: moodData?.color || COLORS.neutral[300] }
               ]}
@@ -94,6 +98,7 @@ export default function JournalEntryScreen() {
               <Text style={styles.moodEmoji}>{moodData?.emoji || '😐'}</Text>
               <Text style={[
                 styles.moodLabel,
+                isSmallScreen && styles.moodLabelSmall,
                 isSelected && styles.selectedMoodLabel
               ]}>
                 {labels[rating - 1]}
@@ -120,7 +125,11 @@ export default function JournalEntryScreen() {
         </Text>
       </View>
       
-      <ScrollView style={styles.scrollContent} contentContainerStyle={styles.content}>
+      <ScrollView 
+        style={styles.scrollContent} 
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Mood Tracking */}
         <MoodSelector
           title="How are you feeling?"
@@ -270,19 +279,19 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
   header: {
-    paddingHorizontal: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.neutral[200],
     backgroundColor: COLORS.white,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: isSmallScreen ? 16 : 18,
     fontFamily: 'Inter-SemiBold',
     color: COLORS.neutral[800],
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[500],
     marginTop: 2,
@@ -291,13 +300,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 20,
+    padding: isSmallScreen ? 16 : 20,
+    paddingBottom: 100,
   },
   selectorContainer: {
     marginBottom: 24,
   },
   selectorTitle: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 15 : 16,
     fontFamily: 'Inter-SemiBold',
     color: COLORS.neutral[800],
     marginBottom: 12,
@@ -306,6 +316,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 8,
+  },
+  moodButtonsSmall: {
+    gap: 4,
   },
   moodButton: {
     flex: 1,
@@ -316,12 +329,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.neutral[200],
   },
+  moodButtonSmall: {
+    padding: 8,
+    borderRadius: 10,
+  },
   selectedMoodButton: {
     backgroundColor: COLORS.primary[50],
     borderColor: COLORS.primary[300],
   },
   moodEmoji: {
-    fontSize: 24,
+    fontSize: isSmallScreen ? 20 : 24,
     marginBottom: 4,
   },
   moodLabel: {
@@ -329,6 +346,9 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
     color: COLORS.neutral[600],
     textAlign: 'center',
+  },
+  moodLabelSmall: {
+    fontSize: 9,
   },
   selectedMoodLabel: {
     color: COLORS.primary[700],
@@ -343,7 +363,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: isSmallScreen ? 15 : 16,
     fontFamily: 'Inter-SemiBold',
     color: COLORS.neutral[800],
   },
@@ -362,6 +382,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[900],
+    borderWidth: Platform.OS === 'ios' ? 1 : 0,
+    borderColor: COLORS.neutral[200],
   },
   textArea: {
     backgroundColor: COLORS.neutral[100],
@@ -371,10 +393,14 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[900],
     height: 100,
+    textAlignVertical: 'top',
+    borderWidth: Platform.OS === 'ios' ? 1 : 0,
+    borderColor: COLORS.neutral[200],
   },
   readOnlyInput: {
     backgroundColor: COLORS.neutral[50],
     color: COLORS.neutral[700],
+    borderColor: COLORS.neutral[100],
   },
   gratitudeItem: {
     flexDirection: 'row',
@@ -387,7 +413,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     flexDirection: 'row',
-    padding: 20,
+    padding: isSmallScreen ? 16 : 20,
     borderTopWidth: 1,
     borderTopColor: COLORS.neutral[200],
     backgroundColor: COLORS.white,

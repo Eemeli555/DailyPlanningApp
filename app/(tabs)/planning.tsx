@@ -1,5 +1,5 @@
 import { useContext, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Plus, Target, Repeat, Dumbbell, ListTodo, Filter, Search, Activity } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -14,6 +14,10 @@ import LongTermGoalCard from '@/components/LongTermGoalCard';
 import GoalItem from '@/components/GoalItem';
 import ProductiveActivityCard from '@/components/ProductiveActivityCard';
 import CreateChoiceModal from '@/components/CreateChoiceModal';
+
+const { width: screenWidth } = Dimensions.get('window');
+const isSmallScreen = screenWidth < 375;
+const isTablet = screenWidth > 768;
 
 type PlanningView = 'overview' | 'habits' | 'goals' | 'workouts' | 'activities';
 
@@ -102,74 +106,106 @@ export default function PlanningScreen() {
   const renderOverview = () => (
     <ScrollView
       style={styles.scrollContent}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: 100 + insets.bottom }]}
       showsVerticalScrollIndicator={false}
     >
       {/* Quick Stats */}
-      <View style={styles.statsSection}>
-        <View style={styles.statCard}>
-          <Target size={24} color={COLORS.primary[600]} />
-          <Text style={styles.statNumber}>{inProgressGoals.length}</Text>
-          <Text style={styles.statLabel}>Active Goals</Text>
+      <View style={[styles.statsSection, isSmallScreen && styles.statsSectionSmall]}>
+        <View style={[styles.statCard, isSmallScreen && styles.statCardSmall]}>
+          <Target size={isSmallScreen ? 20 : 24} color={COLORS.primary[600]} />
+          <Text style={[styles.statNumber, isSmallScreen && styles.statNumberSmall]}>
+            {inProgressGoals.length}
+          </Text>
+          <Text style={[styles.statLabel, isSmallScreen && styles.statLabelSmall]}>
+            Active Goals
+          </Text>
         </View>
         
-        <View style={styles.statCard}>
-          <Repeat size={24} color={COLORS.accent[600]} />
-          <Text style={styles.statNumber}>{completedHabitsToday}/{activeHabits.length}</Text>
-          <Text style={styles.statLabel}>Habits Today</Text>
+        <View style={[styles.statCard, isSmallScreen && styles.statCardSmall]}>
+          <Repeat size={isSmallScreen ? 20 : 24} color={COLORS.accent[600]} />
+          <Text style={[styles.statNumber, isSmallScreen && styles.statNumberSmall]}>
+            {completedHabitsToday}/{activeHabits.length}
+          </Text>
+          <Text style={[styles.statLabel, isSmallScreen && styles.statLabelSmall]}>
+            Habits Today
+          </Text>
         </View>
         
-        <View style={styles.statCard}>
-          <Activity size={24} color={COLORS.warning[600]} />
-          <Text style={styles.statNumber}>{activeActivities.length}</Text>
-          <Text style={styles.statLabel}>Activities</Text>
+        <View style={[styles.statCard, isSmallScreen && styles.statCardSmall]}>
+          <Activity size={isSmallScreen ? 20 : 24} color={COLORS.warning[600]} />
+          <Text style={[styles.statNumber, isSmallScreen && styles.statNumberSmall]}>
+            {activeActivities.length}
+          </Text>
+          <Text style={[styles.statLabel, isSmallScreen && styles.statLabelSmall]}>
+            Activities
+          </Text>
         </View>
 
-        <View style={styles.statCard}>
-          <ListTodo size={24} color={COLORS.secondary[600]} />
-          <Text style={styles.statNumber}>{goalsLibrary.length}</Text>
-          <Text style={styles.statLabel}>Daily Goals</Text>
+        <View style={[styles.statCard, isSmallScreen && styles.statCardSmall]}>
+          <ListTodo size={isSmallScreen ? 20 : 24} color={COLORS.secondary[600]} />
+          <Text style={[styles.statNumber, isSmallScreen && styles.statNumberSmall]}>
+            {goalsLibrary.length}
+          </Text>
+          <Text style={[styles.statLabel, isSmallScreen && styles.statLabelSmall]}>
+            Daily Goals
+          </Text>
         </View>
       </View>
 
       {/* Quick Access */}
       <View style={styles.quickAccessSection}>
         <Text style={styles.sectionTitle}>Quick Access</Text>
-        <View style={styles.quickAccessGrid}>
+        <View style={[styles.quickAccessGrid, isSmallScreen && styles.quickAccessGridSmall]}>
           <TouchableOpacity 
-            style={styles.quickAccessCard}
+            style={[styles.quickAccessCard, isSmallScreen && styles.quickAccessCardSmall]}
             onPress={() => setCurrentView('habits')}
           >
-            <Repeat size={32} color={COLORS.accent[600]} />
-            <Text style={styles.quickAccessTitle}>Habits</Text>
-            <Text style={styles.quickAccessSubtitle}>{activeHabits.length} active</Text>
+            <Repeat size={isSmallScreen ? 28 : 32} color={COLORS.accent[600]} />
+            <Text style={[styles.quickAccessTitle, isSmallScreen && styles.quickAccessTitleSmall]}>
+              Habits
+            </Text>
+            <Text style={[styles.quickAccessSubtitle, isSmallScreen && styles.quickAccessSubtitleSmall]}>
+              {activeHabits.length} active
+            </Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.quickAccessCard}
+            style={[styles.quickAccessCard, isSmallScreen && styles.quickAccessCardSmall]}
             onPress={() => setCurrentView('goals')}
           >
-            <Target size={32} color={COLORS.primary[600]} />
-            <Text style={styles.quickAccessTitle}>Goals</Text>
-            <Text style={styles.quickAccessSubtitle}>{longTermGoals.length + goalsLibrary.length} total</Text>
+            <Target size={isSmallScreen ? 28 : 32} color={COLORS.primary[600]} />
+            <Text style={[styles.quickAccessTitle, isSmallScreen && styles.quickAccessTitleSmall]}>
+              Goals
+            </Text>
+            <Text style={[styles.quickAccessSubtitle, isSmallScreen && styles.quickAccessSubtitleSmall]}>
+              {longTermGoals.length + goalsLibrary.length} total
+            </Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.quickAccessCard}
+            style={[styles.quickAccessCard, isSmallScreen && styles.quickAccessCardSmall]}
             onPress={() => setCurrentView('activities')}
           >
-            <Activity size={32} color={COLORS.warning[600]} />
-            <Text style={styles.quickAccessTitle}>Activities</Text>
-            <Text style={styles.quickAccessSubtitle}>{activeActivities.length} saved</Text>
+            <Activity size={isSmallScreen ? 28 : 32} color={COLORS.warning[600]} />
+            <Text style={[styles.quickAccessTitle, isSmallScreen && styles.quickAccessTitleSmall]}>
+              Activities
+            </Text>
+            <Text style={[styles.quickAccessSubtitle, isSmallScreen && styles.quickAccessSubtitleSmall]}>
+              {activeActivities.length} saved
+            </Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.quickAccessCard}
+            style={[styles.quickAccessCard, isSmallScreen && styles.quickAccessCardSmall]}
             onPress={() => setCurrentView('workouts')}
           >
-            <Dumbbell size={32} color={COLORS.secondary[600]} />
-            <Text style={styles.quickAccessTitle}>Workouts</Text>
-            <Text style={styles.quickAccessSubtitle}>{workouts.length} saved</Text>
+            <Dumbbell size={isSmallScreen ? 28 : 32} color={COLORS.secondary[600]} />
+            <Text style={[styles.quickAccessTitle, isSmallScreen && styles.quickAccessTitleSmall]}>
+              Workouts
+            </Text>
+            <Text style={[styles.quickAccessSubtitle, isSmallScreen && styles.quickAccessSubtitleSmall]}>
+              {workouts.length} saved
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -334,7 +370,7 @@ export default function PlanningScreen() {
 
         <ScrollView
           style={styles.scrollContent}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: 100 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
         >
           {filteredActivities.length === 0 ? (
@@ -411,7 +447,7 @@ export default function PlanningScreen() {
 
         <ScrollView
           style={styles.scrollContent}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: 100 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
         >
           {filteredHabits.length === 0 ? (
@@ -526,7 +562,7 @@ export default function PlanningScreen() {
 
         <ScrollView
           style={styles.scrollContent}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: 100 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Daily Goals Section */}
@@ -669,7 +705,7 @@ export default function PlanningScreen() {
   const renderWorkouts = () => (
     <ScrollView
       style={styles.scrollContent}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: 100 + insets.bottom }]}
       showsVerticalScrollIndicator={false}
     >
       {workouts.length === 0 ? (
@@ -751,12 +787,13 @@ export default function PlanningScreen() {
               onPress={() => setCurrentView(id as PlanningView)}
             >
               <Icon 
-                size={14} 
+                size={isSmallScreen ? 12 : 14} 
                 color={currentView === id ? COLORS.white : COLORS.neutral[600]} 
               />
               <Text style={[
                 styles.viewTabText,
-                currentView === id && styles.activeViewTabText
+                currentView === id && styles.activeViewTabText,
+                isSmallScreen && styles.viewTabTextSmall
               ]}>
                 {label}
               </Text>
@@ -804,7 +841,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.neutral[50],
   },
   header: {
-    paddingHorizontal: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
     paddingTop: 16,
     paddingBottom: 12,
     backgroundColor: COLORS.white,
@@ -820,12 +857,12 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   title: {
-    fontSize: 28,
+    fontSize: isSmallScreen ? 26 : 28,
     fontFamily: 'Inter-Bold',
     color: COLORS.neutral[900],
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: isSmallScreen ? 13 : 14,
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[500],
     marginTop: 4,
@@ -842,8 +879,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    paddingVertical: isSmallScreen ? 6 : 8,
+    paddingHorizontal: isSmallScreen ? 2 : 4,
     borderRadius: 6,
     gap: 2,
   },
@@ -855,15 +892,22 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
     color: COLORS.neutral[600],
   },
+  viewTabTextSmall: {
+    fontSize: 9,
+  },
   activeViewTabText: {
     color: COLORS.white,
   },
   searchContainer: {
-    marginHorizontal: 20,
+    marginHorizontal: isSmallScreen ? 16 : 20,
     marginTop: 16,
     marginBottom: 8,
     paddingHorizontal: 12,
-    height: 44,
+    height: Platform.select({
+      ios: 44,
+      android: 48,
+      default: 44,
+    }),
     backgroundColor: COLORS.white,
     borderRadius: 8,
     flexDirection: 'row',
@@ -892,7 +936,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.neutral[100],
     borderRadius: 8,
     padding: 4,
-    marginHorizontal: 20,
+    marginHorizontal: isSmallScreen ? 16 : 20,
     marginTop: 16,
     marginBottom: 8,
   },
@@ -919,7 +963,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingHorizontal: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
     paddingBottom: 100,
   },
   statsSection: {
@@ -927,6 +971,9 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 20,
     marginBottom: 24,
+  },
+  statsSectionSmall: {
+    gap: 8,
   },
   statCard: {
     flex: 1,
@@ -943,11 +990,19 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  statCardSmall: {
+    padding: 12,
+    borderRadius: 10,
+  },
   statNumber: {
     fontSize: 20,
     fontFamily: 'Inter-Bold',
     color: COLORS.neutral[800],
     marginTop: 8,
+  },
+  statNumberSmall: {
+    fontSize: 18,
+    marginTop: 6,
   },
   statLabel: {
     fontSize: 12,
@@ -956,11 +1011,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center',
   },
+  statLabelSmall: {
+    fontSize: 11,
+  },
   quickAccessSection: {
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: isSmallScreen ? 17 : 18,
     fontFamily: 'Inter-SemiBold',
     color: COLORS.neutral[800],
     marginBottom: 16,
@@ -969,6 +1027,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+  },
+  quickAccessGridSmall: {
+    gap: 8,
   },
   quickAccessCard: {
     width: '48%',
@@ -985,17 +1046,28 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  quickAccessCardSmall: {
+    padding: 12,
+    borderRadius: 10,
+  },
   quickAccessTitle: {
     fontSize: 14,
     fontFamily: 'Inter-SemiBold',
     color: COLORS.neutral[800],
     marginTop: 8,
   },
+  quickAccessTitleSmall: {
+    fontSize: 13,
+    marginTop: 6,
+  },
   quickAccessSubtitle: {
     fontSize: 12,
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[500],
     marginTop: 2,
+  },
+  quickAccessSubtitleSmall: {
+    fontSize: 11,
   },
   recentSection: {
     marginBottom: 24,
@@ -1138,7 +1210,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   categoryScrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
     gap: 8,
   },
   categoryChip: {
