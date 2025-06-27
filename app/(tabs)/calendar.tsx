@@ -482,11 +482,16 @@ export default function CalendarScreen() {
         </View>
       </View>
 
-      {calendarView === 'calendar' ? renderCalendarView() : (
-        <DailyPlannerTable 
-          currentDate={currentMonth}
-          onDateChange={setCurrentMonth}
-        />
+      {/* Updated container for planner view to use full width */}
+      {calendarView === 'calendar' ? (
+        renderCalendarView()
+      ) : (
+        <View style={styles.plannerContainer}>
+          <DailyPlannerTable 
+            currentDate={currentMonth}
+            onDateChange={setCurrentMonth}
+          />
+        </View>
       )}
 
       <Modal
@@ -579,6 +584,10 @@ const styles = StyleSheet.create({
   },
   activeToggleText: {
     color: COLORS.white,
+  },
+  plannerContainer: {
+    flex: 1,
+    width: '100%',
   },
   calendarHeader: {
     flexDirection: 'row',

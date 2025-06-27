@@ -428,9 +428,9 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
         </TouchableOpacity>
       </View>
       
-      {/* Table Container */}
+      {/* Table Container - Updated for full width on desktop */}
       <ScrollView style={styles.tableContainer} showsVerticalScrollIndicator={false}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
           <View style={[styles.table, isTablet && styles.tableTablet]}>
             {renderTableHeader()}
             {calendarDays.map((day, index) => renderTableRow(day, index))}
@@ -721,7 +721,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
   headerTablet: {
-    paddingHorizontal: 40,
+    paddingHorizontal: 24,
   },
   navButton: {
     padding: 8,
@@ -740,11 +740,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.neutral[50],
   },
+  horizontalScroll: {
+    flex: 1,
+  },
   table: {
-    minWidth: 800,
+    minWidth: '100%',
+    width: '100%',
   },
   tableTablet: {
-    minWidth: 1200,
+    minWidth: '100%',
+    width: '100%',
   },
   tableHeader: {
     flexDirection: 'row',
@@ -798,22 +803,30 @@ const styles = StyleSheet.create({
     borderRightColor: COLORS.neutral[200],
   },
   dateColumn: {
-    width: 80,
+    width: 100,
+    minWidth: 100,
   },
   dateColumnTablet: {
     width: 120,
+    minWidth: 120,
   },
   dataColumn: {
-    width: 80,
+    width: 100,
+    minWidth: 100,
   },
   dataColumnTablet: {
-    width: 100,
+    width: 120,
+    minWidth: 120,
   },
   notesColumn: {
-    width: 150,
+    width: 200,
+    minWidth: 200,
+    flex: 1,
   },
   notesColumnTablet: {
-    width: 200,
+    width: 250,
+    minWidth: 250,
+    flex: 1,
   },
   dateContainer: {
     alignItems: 'center',
