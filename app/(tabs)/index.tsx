@@ -2,7 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
-import { Plus, Calendar, CircleCheck as CheckCircle2, Clock, Star, Zap, Trophy, Target } from 'lucide-react-native';
+import { Plus, Calendar, CircleCheck as CheckCircle2, Clock, Star, Zap, Trophy, Target, Repeat } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
 
@@ -16,7 +16,9 @@ import FloatingActionButton from '@/components/FloatingActionButton';
 import DailyScheduleOverview from '@/components/DailyScheduleOverview';
 import ScheduleGoalModal from '@/components/ScheduleGoalModal';
 import CreateChoiceModal from '@/components/CreateChoiceModal';
+import HabitCard from '@/components/HabitCard';
 import { getCompletionStatus } from '@/utils/helpers';
+import { calculateHabitStreak } from '@/utils/gamification';
 
 export default function TodayScreen() {
   const insets = useSafeAreaInsets();
@@ -35,7 +37,8 @@ export default function TodayScreen() {
     habitEntries,
     dailyChallenge,
     completeDailyChallenge,
-    achievements
+    achievements,
+    toggleHabitCompletion
   } = useContext(AppContext);
   
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -44,11 +47,15 @@ export default function TodayScreen() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   
   const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
   const todayFormatted = format(today, 'EEEE, MMMM d');
   const { label, color } = getCompletionStatus(progressToday);
 
+  // Separate habits from regular goals
+  const habitGoals = todaysGoals.filter(goal => goal.id.startsWith('habit-'));
+  const regularGoals = todaysGoals.filter(goal => !goal.id.startsWith('habit-'));
+
   // Get today's habit progress
-  const todayStr = today.toISOString().split('T')[0];
   const todayHabitEntries = habitEntries.filter(entry => entry.date === todayStr);
   const activeHabits = habits.filter(habit => habit.isActive);
   const completedHabits = todayHabitEntries.filter(entry => entry.completed).length;
@@ -82,6 +89,10 @@ export default function TodayScreen() {
     }
   };
 
+  const handleToggleHabit = (habitId: string) => {
+    toggleHabitCompletion(habitId, todayStr);
+  };
+
   const handleSetTimer = (goalId: string) => {
     setTimerForGoal(goalId);
   };
@@ -96,7 +107,7 @@ export default function TodayScreen() {
   // Get current time for "happening now" indicator
   const getCurrentActivity = () => {
     const now = new Date();
-    return todaysGoals.find(goal => {
+    return regularGoals.find(goal => {
       if (!goal.scheduledTime) return false;
       const start = new Date(goal.scheduledTime.start);
       const end = new Date(goal.scheduledTime.end);
@@ -237,10 +248,48 @@ export default function TodayScreen() {
             </ScrollView>
           </Animated.View>
         )}
+
+        {/* Today's Habits */}
+        {activeHabits.length > 0 && (
+          <View style={styles.habitsSection}>
+            <View style={styles.sectionHeader}>
+              <Repeat size={20} color={COLORS.accent[600]} />
+              <Text style={styles.sectionTitle}>Today's Habits</Text>
+              <Text style={styles.habitProgress}>
+                {completedHabits}/{activeHabits.length}
+              </Text>
+            </View>
+            
+            <View style={styles.habitsContainer}>
+              {activeHabits.map((habit, index) => {
+                const todayEntry = todayHabitEntries.find(entry => entry.habitId === habit.id);
+                const streak = calculateHabitStreak(habitEntries, habit.id);
+                
+                return (
+                  <Animated.View
+                    key={habit.id}
+                    entering={FadeInUp.delay(index * 50).springify()}
+                  >
+                    <HabitCard
+                      habit={habit}
+                      entry={todayEntry}
+                      onToggle={() => handleToggleHabit(habit.id)}
+                      onEdit={() => router.push({
+                        pathname: '/modals/edit-habit',
+                        params: { habitId: habit.id }
+                      })}
+                      streak={streak}
+                    />
+                  </Animated.View>
+                );
+              })}
+            </View>
+          </View>
+        )}
         
         {/* Compact Daily Schedule Overview */}
         <DailyScheduleOverview 
-          goals={todaysGoals} 
+          goals={regularGoals} 
           date={today}
           onToggleComplete={handleToggleComplete}
           onSetTimer={handleSetTimer}
@@ -282,14 +331,14 @@ export default function TodayScreen() {
         </View>
 
         {/* Unscheduled Goals - Compact List */}
-        {todaysGoals.filter(goal => !goal.scheduledTime).length > 0 && (
+        {regularGoals.filter(goal => !goal.scheduledTime).length > 0 && (
           <View style={styles.unscheduledSection}>
             <Text style={styles.sectionTitle}>
-              Unscheduled Goals ({todaysGoals.filter(goal => !goal.scheduledTime).length})
+              Unscheduled Goals ({regularGoals.filter(goal => !goal.scheduledTime).length})
             </Text>
             
             <View style={styles.unscheduledGoalsContainer}>
-              {todaysGoals.filter(goal => !goal.scheduledTime).map((goal, index) => (
+              {regularGoals.filter(goal => !goal.scheduledTime).map((goal, index) => (
                 <Animated.View 
                   key={goal.id}
                   entering={FadeInUp.delay(index * 50).springify()}
@@ -569,6 +618,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-SemiBold',
     color: COLORS.neutral[800],
     marginLeft: 8,
+    flex: 1,
+  },
+  habitProgress: {
+    fontSize: 14,
+    fontFamily: 'Inter-Bold',
+    color: COLORS.accent[600],
   },
   achievementsScroll: {
     paddingRight: 20,
@@ -604,6 +659,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: 'Inter-Medium',
     color: COLORS.warning[600],
+  },
+  habitsSection: {
+    marginHorizontal: 20,
+    marginTop: 16,
+  },
+  habitsContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    paddingVertical: 4,
+    shadowColor: COLORS.neutral[900],
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   quickActionsSection: {
     marginHorizontal: 20,

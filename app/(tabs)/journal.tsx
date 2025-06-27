@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Plus, Calendar, Sunrise, Sunset, CreditCard as Edit, BookOpen, Moon, Clock, Sun } from 'lucide-react-native';
+import { Plus, Calendar, Sunrise, Sunset, CreditCard as Edit, BookOpen, Moon, Clock, Sun, Brain, Heart, Zap } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { format } from 'date-fns';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -15,11 +15,13 @@ import MoodChart from '@/components/MoodChart';
 export default function JournalScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { journalEntries, userProfile } = useContext(AppContext);
+  const { journalEntries, userProfile, sleepData, socialMediaData } = useContext(AppContext);
   
   const today = new Date().toISOString().split('T')[0];
   const todayMorningEntry = journalEntries.find(entry => entry.date === today && entry.type === 'morning');
   const todayEveningEntry = journalEntries.find(entry => entry.date === today && entry.type === 'evening');
+  const todaySleep = sleepData.find(sleep => sleep.date === today);
+  const todaySocial = socialMediaData.find(social => social.date === today);
   
   const recentEntries = journalEntries
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -187,6 +189,48 @@ export default function JournalScreen() {
             <Text style={styles.streakLabel}>Day Streak</Text>
           </View>
         </View>
+
+        {/* Today's Data Summary */}
+        {(todaySleep || todaySocial || todayMorningEntry || todayEveningEntry) && (
+          <View style={styles.todayDataSection}>
+            <Text style={styles.todayDataTitle}>Today's Data</Text>
+            <View style={styles.todayDataGrid}>
+              {todaySleep && (
+                <View style={styles.dataCard}>
+                  <Brain size={16} color={COLORS.accent[600]} />
+                  <Text style={styles.dataValue}>{todaySleep.hoursSlept}h</Text>
+                  <Text style={styles.dataLabel}>Sleep</Text>
+                  <Text style={styles.dataSubtext}>Quality: {todaySleep.quality}/10</Text>
+                </View>
+              )}
+              
+              {todayMorningEntry?.mood && (
+                <View style={styles.dataCard}>
+                  <Heart size={16} color={COLORS.error[500]} />
+                  <Text style={styles.dataValue}>{todayMorningEntry.mood}/5</Text>
+                  <Text style={styles.dataLabel}>Morning Mood</Text>
+                </View>
+              )}
+              
+              {todayEveningEntry?.mood && (
+                <View style={styles.dataCard}>
+                  <Moon size={16} color={COLORS.secondary[600]} />
+                  <Text style={styles.dataValue}>{todayEveningEntry.mood}/5</Text>
+                  <Text style={styles.dataLabel}>Evening Mood</Text>
+                </View>
+              )}
+              
+              {todaySocial && (
+                <View style={styles.dataCard}>
+                  <Zap size={16} color={COLORS.warning[600]} />
+                  <Text style={styles.dataValue}>{Math.round(todaySocial.totalMinutes / 60)}h</Text>
+                  <Text style={styles.dataLabel}>Screen Time</Text>
+                  <Text style={styles.dataSubtext}>{todaySocial.totalMinutes}m total</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
       </View>
 
       <ScrollView
@@ -267,12 +311,54 @@ export default function JournalScreen() {
                       {entry.reflection}
                     </Text>
                   )}
+
+                  {/* Show sleep data for morning entries */}
+                  {entry.type === 'morning' && entry.sleepHours && (
+                    <View style={styles.sleepSection}>
+                      <Text style={styles.sleepLabel}>Sleep:</Text>
+                      <Text style={styles.sleepText}>
+                        {entry.sleepHours}h • Quality: {entry.sleepQuality}/10
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Show energy and stress for evening entries */}
+                  {entry.type === 'evening' && (entry.energy || entry.stress) && (
+                    <View style={styles.wellnessSection}>
+                      {entry.energy && (
+                        <Text style={styles.wellnessText}>Energy: {entry.energy}/5</Text>
+                      )}
+                      {entry.stress && (
+                        <Text style={styles.wellnessText}>Stress: {entry.stress}/5</Text>
+                      )}
+                    </View>
+                  )}
                   
                   {entry.gratitude && entry.gratitude.length > 0 && (
                     <View style={styles.gratitudeSection}>
                       <Text style={styles.gratitudeLabel}>Grateful for:</Text>
                       <Text style={styles.gratitudeText} numberOfLines={1}>
                         {entry.gratitude.join(', ')}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Show morning gratitude for morning entries */}
+                  {entry.type === 'morning' && entry.morningGratitude && (
+                    <View style={styles.gratitudeSection}>
+                      <Text style={styles.gratitudeLabel}>Morning gratitude:</Text>
+                      <Text style={styles.gratitudeText} numberOfLines={2}>
+                        {entry.morningGratitude}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Show daily goals for morning entries */}
+                  {entry.type === 'morning' && entry.dailyGoals && entry.dailyGoals.length > 0 && (
+                    <View style={styles.goalsSection}>
+                      <Text style={styles.goalsLabel}>Daily goals:</Text>
+                      <Text style={styles.goalsText} numberOfLines={2}>
+                        {entry.dailyGoals.join(', ')}
                       </Text>
                     </View>
                   )}
@@ -444,6 +530,46 @@ const styles = StyleSheet.create({
     color: COLORS.warning[600],
     marginTop: 2,
   },
+  todayDataSection: {
+    marginTop: 8,
+  },
+  todayDataTitle: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.neutral[700],
+    marginBottom: 12,
+  },
+  todayDataGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  dataCard: {
+    backgroundColor: COLORS.neutral[50],
+    borderRadius: 8,
+    padding: 8,
+    alignItems: 'center',
+    minWidth: 70,
+    flex: 1,
+  },
+  dataValue: {
+    fontSize: 16,
+    fontFamily: 'Inter-Bold',
+    color: COLORS.neutral[800],
+    marginTop: 4,
+  },
+  dataLabel: {
+    fontSize: 10,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.neutral[600],
+    marginTop: 2,
+  },
+  dataSubtext: {
+    fontSize: 9,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[500],
+    marginTop: 1,
+  },
   scrollContent: {
     flex: 1,
   },
@@ -518,10 +644,41 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginBottom: 6,
   },
+  sleepSection: {
+    backgroundColor: COLORS.accent[50],
+    borderRadius: 6,
+    padding: 6,
+    marginBottom: 6,
+  },
+  sleepLabel: {
+    fontSize: 10,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.accent[700],
+    marginBottom: 2,
+  },
+  sleepText: {
+    fontSize: 10,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.accent[600],
+  },
+  wellnessSection: {
+    backgroundColor: COLORS.secondary[50],
+    borderRadius: 6,
+    padding: 6,
+    marginBottom: 6,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  wellnessText: {
+    fontSize: 10,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.secondary[600],
+  },
   gratitudeSection: {
     backgroundColor: COLORS.success[50],
     borderRadius: 6,
     padding: 6,
+    marginBottom: 6,
   },
   gratitudeLabel: {
     fontSize: 10,
@@ -533,5 +690,21 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: 'Inter-Regular',
     color: COLORS.success[600],
+  },
+  goalsSection: {
+    backgroundColor: COLORS.primary[50],
+    borderRadius: 6,
+    padding: 6,
+  },
+  goalsLabel: {
+    fontSize: 10,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.primary[700],
+    marginBottom: 2,
+  },
+  goalsText: {
+    fontSize: 10,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.primary[600],
   },
 });

@@ -5,7 +5,6 @@ import { CircleCheck as CheckCircle, Circle, CreditCard as Edit, Flame } from 'l
 import { COLORS } from '@/constants/theme';
 import { HABIT_CATEGORIES } from '@/constants/gamification';
 import { Habit, HabitEntry } from '@/types';
-import { calculateHabitStreak } from '@/utils/gamification';
 
 interface HabitCardProps {
   habit: Habit;
@@ -13,14 +12,12 @@ interface HabitCardProps {
   onToggle: () => void;
   onEdit: () => void;
   showStreak?: boolean;
+  streak?: number;
 }
 
-const HabitCard = ({ habit, entry, onToggle, onEdit, showStreak = true }: HabitCardProps) => {
+const HabitCard = ({ habit, entry, onToggle, onEdit, showStreak = true, streak = 0 }: HabitCardProps) => {
   const category = HABIT_CATEGORIES.find(c => c.id === habit.category);
   const isCompleted = entry?.completed || false;
-  
-  // For demo purposes, we'll show a mock streak
-  const streak = Math.floor(Math.random() * 15) + 1;
 
   return (
     <View style={[styles.container, { borderLeftColor: habit.color }]}>
