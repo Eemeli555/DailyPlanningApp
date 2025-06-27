@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Plus, Calendar, Sunrise, Sunset, CreditCard as Edit, BookOpen, Moon, Clock, Sun, Brain, Heart, Zap } from 'lucide-react-native';
+import { Plus, Calendar, Sunrise, Sunset, CreditCard as Edit, BookOpen, Moon, Clock, Sun, Brain, Heart, Zap, Target, Activity, Droplets } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { format } from 'date-fns';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -295,49 +295,132 @@ export default function JournalScreen() {
                   
                   {/* Show different content based on entry type */}
                   {entry.type === 'morning' && entry.mainFocus && (
-                    <Text style={styles.entryText} numberOfLines={2}>
-                      Today's focus: {entry.mainFocus}
-                    </Text>
+                    <View style={styles.contentSection}>
+                      <View style={styles.contentRow}>
+                        <Target size={14} color={COLORS.primary[600]} />
+                        <Text style={styles.contentLabel}>Today's focus:</Text>
+                      </View>
+                      <Text style={styles.contentText}>{entry.mainFocus}</Text>
+                    </View>
                   )}
                   
                   {entry.type === 'evening' && entry.reflection && (
-                    <Text style={styles.entryText} numberOfLines={3}>
-                      {entry.reflection}
-                    </Text>
+                    <View style={styles.contentSection}>
+                      <View style={styles.contentRow}>
+                        <BookOpen size={14} color={COLORS.secondary[600]} />
+                        <Text style={styles.contentLabel}>Reflection:</Text>
+                      </View>
+                      <Text style={styles.contentText} numberOfLines={3}>
+                        {entry.reflection}
+                      </Text>
+                    </View>
                   )}
                   
                   {entry.type === 'free' && entry.reflection && (
-                    <Text style={styles.entryText} numberOfLines={3}>
-                      {entry.reflection}
-                    </Text>
+                    <View style={styles.contentSection}>
+                      <View style={styles.contentRow}>
+                        <BookOpen size={14} color={COLORS.primary[600]} />
+                        <Text style={styles.contentLabel}>Thoughts:</Text>
+                      </View>
+                      <Text style={styles.contentText} numberOfLines={3}>
+                        {entry.reflection}
+                      </Text>
+                    </View>
                   )}
 
                   {/* Show sleep data for morning entries */}
                   {entry.type === 'morning' && entry.sleepHours && (
-                    <View style={styles.sleepSection}>
-                      <Text style={styles.sleepLabel}>Sleep:</Text>
-                      <Text style={styles.sleepText}>
-                        {entry.sleepHours}h • Quality: {entry.sleepQuality}/10
-                      </Text>
+                    <View style={styles.dataSection}>
+                      <View style={styles.dataRow}>
+                        <Brain size={14} color={COLORS.accent[600]} />
+                        <Text style={styles.dataLabel}>Sleep:</Text>
+                        <Text style={styles.dataValue}>
+                          {entry.sleepHours}h • Quality: {entry.sleepQuality}/10
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Show morning feeling */}
+                  {entry.type === 'morning' && entry.morningFeeling && (
+                    <View style={styles.dataSection}>
+                      <View style={styles.dataRow}>
+                        <Heart size={14} color={COLORS.error[500]} />
+                        <Text style={styles.dataLabel}>Feeling:</Text>
+                        <Text style={styles.dataValue} numberOfLines={1}>
+                          {entry.morningFeeling}
+                        </Text>
+                      </View>
                     </View>
                   )}
 
                   {/* Show energy and stress for evening entries */}
                   {entry.type === 'evening' && (entry.energy || entry.stress) && (
-                    <View style={styles.wellnessSection}>
+                    <View style={styles.dataSection}>
                       {entry.energy && (
-                        <Text style={styles.wellnessText}>Energy: {entry.energy}/5</Text>
+                        <View style={styles.dataRow}>
+                          <Zap size={14} color={COLORS.warning[600]} />
+                          <Text style={styles.dataLabel}>Energy:</Text>
+                          <Text style={styles.dataValue}>{entry.energy}/5</Text>
+                        </View>
                       )}
                       {entry.stress && (
-                        <Text style={styles.wellnessText}>Stress: {entry.stress}/5</Text>
+                        <View style={styles.dataRow}>
+                          <Activity size={14} color={COLORS.error[600]} />
+                          <Text style={styles.dataLabel}>Stress:</Text>
+                          <Text style={styles.dataValue}>{entry.stress}/5</Text>
+                        </View>
                       )}
                     </View>
                   )}
+
+                  {/* Show highlights */}
+                  {entry.highlights && (
+                    <View style={styles.contentSection}>
+                      <View style={styles.contentRow}>
+                        <Sun size={14} color={COLORS.warning[600]} />
+                        <Text style={styles.contentLabel}>Highlights:</Text>
+                      </View>
+                      <Text style={styles.contentText} numberOfLines={2}>
+                        {entry.highlights}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Show challenges */}
+                  {entry.challenges && (
+                    <View style={styles.contentSection}>
+                      <View style={styles.contentRow}>
+                        <Target size={14} color={COLORS.error[600]} />
+                        <Text style={styles.contentLabel}>Challenges:</Text>
+                      </View>
+                      <Text style={styles.contentText} numberOfLines={2}>
+                        {entry.challenges}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Show tomorrow's focus */}
+                  {entry.tomorrowFocus && (
+                    <View style={styles.contentSection}>
+                      <View style={styles.contentRow}>
+                        <Sunrise size={14} color={COLORS.accent[600]} />
+                        <Text style={styles.contentLabel}>Tomorrow's focus:</Text>
+                      </View>
+                      <Text style={styles.contentText} numberOfLines={1}>
+                        {entry.tomorrowFocus}
+                      </Text>
+                    </View>
+                  )}
                   
+                  {/* Show gratitude */}
                   {entry.gratitude && entry.gratitude.length > 0 && (
                     <View style={styles.gratitudeSection}>
-                      <Text style={styles.gratitudeLabel}>Grateful for:</Text>
-                      <Text style={styles.gratitudeText} numberOfLines={1}>
+                      <View style={styles.contentRow}>
+                        <Heart size={14} color={COLORS.success[600]} />
+                        <Text style={styles.gratitudeLabel}>Grateful for:</Text>
+                      </View>
+                      <Text style={styles.gratitudeText} numberOfLines={2}>
                         {entry.gratitude.join(', ')}
                       </Text>
                     </View>
@@ -346,7 +429,10 @@ export default function JournalScreen() {
                   {/* Show morning gratitude for morning entries */}
                   {entry.type === 'morning' && entry.morningGratitude && (
                     <View style={styles.gratitudeSection}>
-                      <Text style={styles.gratitudeLabel}>Morning gratitude:</Text>
+                      <View style={styles.contentRow}>
+                        <Heart size={14} color={COLORS.success[600]} />
+                        <Text style={styles.gratitudeLabel}>Morning gratitude:</Text>
+                      </View>
                       <Text style={styles.gratitudeText} numberOfLines={2}>
                         {entry.morningGratitude}
                       </Text>
@@ -356,10 +442,22 @@ export default function JournalScreen() {
                   {/* Show daily goals for morning entries */}
                   {entry.type === 'morning' && entry.dailyGoals && entry.dailyGoals.length > 0 && (
                     <View style={styles.goalsSection}>
-                      <Text style={styles.goalsLabel}>Daily goals:</Text>
-                      <Text style={styles.goalsText} numberOfLines={2}>
-                        {entry.dailyGoals.join(', ')}
-                      </Text>
+                      <View style={styles.contentRow}>
+                        <Target size={14} color={COLORS.primary[600]} />
+                        <Text style={styles.goalsLabel}>Daily goals:</Text>
+                      </View>
+                      <View style={styles.goalsList}>
+                        {entry.dailyGoals.slice(0, 3).map((goal, goalIndex) => (
+                          <Text key={goalIndex} style={styles.goalItem} numberOfLines={1}>
+                            • {goal}
+                          </Text>
+                        ))}
+                        {entry.dailyGoals.length > 3 && (
+                          <Text style={styles.moreGoals}>
+                            +{entry.dailyGoals.length - 3} more goals
+                          </Text>
+                        )}
+                      </View>
                     </View>
                   )}
                 </TouchableOpacity>
@@ -637,74 +735,85 @@ const styles = StyleSheet.create({
     color: COLORS.neutral[600],
     marginTop: 2,
   },
-  entryText: {
+  contentSection: {
+    marginBottom: 8,
+  },
+  contentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  contentLabel: {
+    fontSize: 11,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.neutral[600],
+    marginLeft: 6,
+  },
+  contentText: {
     fontSize: 12,
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[700],
     lineHeight: 16,
-    marginBottom: 6,
+    marginLeft: 20,
   },
-  sleepSection: {
-    backgroundColor: COLORS.accent[50],
+  dataSection: {
+    backgroundColor: COLORS.neutral[50],
     borderRadius: 6,
-    padding: 6,
+    padding: 8,
     marginBottom: 6,
   },
-  sleepLabel: {
-    fontSize: 10,
-    fontFamily: 'Inter-Medium',
-    color: COLORS.accent[700],
-    marginBottom: 2,
-  },
-  sleepText: {
-    fontSize: 10,
-    fontFamily: 'Inter-Regular',
-    color: COLORS.accent[600],
-  },
-  wellnessSection: {
-    backgroundColor: COLORS.secondary[50],
-    borderRadius: 6,
-    padding: 6,
-    marginBottom: 6,
+  dataRow: {
     flexDirection: 'row',
-    gap: 12,
-  },
-  wellnessText: {
-    fontSize: 10,
-    fontFamily: 'Inter-Regular',
-    color: COLORS.secondary[600],
+    alignItems: 'center',
+    marginBottom: 2,
   },
   gratitudeSection: {
     backgroundColor: COLORS.success[50],
     borderRadius: 6,
-    padding: 6,
+    padding: 8,
     marginBottom: 6,
   },
   gratitudeLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: 'Inter-Medium',
     color: COLORS.success[700],
-    marginBottom: 2,
+    marginLeft: 6,
   },
   gratitudeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: 'Inter-Regular',
     color: COLORS.success[600],
+    marginLeft: 20,
+    lineHeight: 15,
   },
   goalsSection: {
     backgroundColor: COLORS.primary[50],
     borderRadius: 6,
-    padding: 6,
+    padding: 8,
+    marginBottom: 6,
   },
   goalsLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: 'Inter-Medium',
     color: COLORS.primary[700],
-    marginBottom: 2,
+    marginLeft: 6,
   },
-  goalsText: {
-    fontSize: 10,
+  goalsList: {
+    marginLeft: 20,
+    marginTop: 4,
+  },
+  goalItem: {
+    fontSize: 11,
     fontFamily: 'Inter-Regular',
     color: COLORS.primary[600],
+    lineHeight: 15,
+    marginBottom: 2,
+  },
+  moreGoals: {
+    fontSize: 10,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.primary[500],
+    fontStyle: 'italic',
+    marginTop: 2,
   },
 });
