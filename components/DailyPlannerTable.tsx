@@ -214,27 +214,27 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
   };
 
   const renderTableHeader = () => (
-    <View style={[styles.tableHeader, isTablet && styles.tableHeaderTablet]}>
-      <View style={[styles.headerCell, styles.dateColumn, isTablet && styles.dateColumnTablet]}>
+    <View style={styles.tableHeader}>
+      <View style={styles.headerCell}>
         <Text style={styles.headerText}>Date</Text>
       </View>
-      <View style={[styles.headerCell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
+      <View style={styles.headerCell}>
         <Text style={styles.headerText}>Rating</Text>
       </View>
-      <View style={[styles.headerCell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
+      <View style={styles.headerCell}>
         <Text style={styles.headerText}>Sleep</Text>
       </View>
-      <View style={[styles.headerCell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
+      <View style={styles.headerCell}>
         <Text style={styles.headerText}>Goals</Text>
       </View>
-      <View style={[styles.headerCell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
+      <View style={styles.headerCell}>
         <Text style={styles.headerText}>Mood</Text>
       </View>
-      <View style={[styles.headerCell, styles.notesColumn, isTablet && styles.notesColumnTablet]}>
+      <View style={[styles.headerCell, styles.notesColumn]}>
         <Text style={styles.headerText}>Notes</Text>
       </View>
       {plannerSettings.customColumns.map(column => (
-        <View key={column.id} style={[styles.headerCell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
+        <View key={column.id} style={styles.headerCell}>
           <Text style={styles.headerText}>{column.name}</Text>
         </View>
       ))}
@@ -260,7 +260,6 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
         key={index}
         style={[
           styles.tableRow,
-          isTablet && styles.tableRowTablet,
           !isCurrentMonth && styles.outsideMonthRow,
           isTodayDate && styles.todayRow,
           entry && styles.hasDataRow,
@@ -268,7 +267,7 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
         onPress={() => handleDayPress(day)}
       >
         {/* Date Column */}
-        <View style={[styles.cell, styles.dateColumn, isTablet && styles.dateColumnTablet]}>
+        <View style={styles.cell}>
           <View style={styles.dateContainer}>
             <Text style={[
               styles.dayNumber,
@@ -287,7 +286,7 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
         </View>
 
         {/* Rating Column */}
-        <View style={[styles.cell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
+        <View style={styles.cell}>
           {entry?.rating ? (
             <View style={styles.ratingContainer}>
               <View style={[
@@ -312,7 +311,7 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
         </View>
 
         {/* Sleep Column */}
-        <View style={[styles.cell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
+        <View style={styles.cell}>
           {entry?.sleep.hours || daySleep ? (
             <View style={styles.sleepContainer}>
               <Text style={styles.sleepHours}>
@@ -329,7 +328,7 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
         </View>
 
         {/* Goals Column */}
-        <View style={[styles.cell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
+        <View style={styles.cell}>
           {dayPlan?.goals.length ? (
             <View style={styles.goalsContainer}>
               <Text style={styles.goalsCount}>
@@ -348,7 +347,7 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
         </View>
 
         {/* Mood Column */}
-        <View style={[styles.cell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
+        <View style={styles.cell}>
           {dayJournal?.mood ? (
             <View style={styles.moodContainer}>
               <Text style={styles.moodValue}>{dayJournal.mood}/5</Text>
@@ -369,7 +368,7 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
         </View>
 
         {/* Notes Column */}
-        <View style={[styles.cell, styles.notesColumn, isTablet && styles.notesColumnTablet]}>
+        <View style={[styles.cell, styles.notesColumn]}>
           {entry?.thoughts || dayJournal?.reflection ? (
             <Text style={styles.notesText} numberOfLines={2}>
               {entry?.thoughts || dayJournal?.reflection}
@@ -381,7 +380,7 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
 
         {/* Custom Columns */}
         {plannerSettings.customColumns.map(column => (
-          <View key={column.id} style={[styles.cell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
+          <View key={column.id} style={styles.cell}>
             {entry?.customFields[column.id] ? (
               column.type === 'rating' ? (
                 <View style={[
@@ -407,7 +406,7 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, isTablet && styles.headerTablet]}>
+      <View style={styles.header}>
         <TouchableOpacity onPress={goToPreviousMonth} style={styles.navButton}>
           <ChevronLeft size={24} color={COLORS.neutral[600]} />
         </TouchableOpacity>
@@ -428,15 +427,20 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
         </TouchableOpacity>
       </View>
       
-      {/* Table Container - Updated for full width on desktop */}
-      <ScrollView style={styles.tableContainer} showsVerticalScrollIndicator={false}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
-          <View style={[styles.table, isTablet && styles.tableTablet]}>
+      {/* Table Container - Full Width Layout */}
+      <View style={styles.tableContainer}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          style={styles.horizontalScrollView}
+          contentContainerStyle={styles.horizontalScrollContent}
+        >
+          <View style={styles.table}>
             {renderTableHeader()}
             {calendarDays.map((day, index) => renderTableRow(day, index))}
           </View>
         </ScrollView>
-      </ScrollView>
+      </View>
       
       {/* Entry Detail Modal */}
       <Modal
@@ -720,9 +724,6 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.neutral[200],
     backgroundColor: COLORS.white,
   },
-  headerTablet: {
-    paddingHorizontal: 24,
-  },
   navButton: {
     padding: 8,
   },
@@ -740,32 +741,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.neutral[50],
   },
-  horizontalScroll: {
+  horizontalScrollView: {
     flex: 1,
   },
-  table: {
+  horizontalScrollContent: {
     minWidth: '100%',
-    width: '100%',
   },
-  tableTablet: {
+  table: {
+    flex: 1,
     minWidth: '100%',
-    width: '100%',
   },
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: COLORS.neutral[100],
     borderBottomWidth: 2,
     borderBottomColor: COLORS.neutral[300],
-    paddingVertical: 12,
-  },
-  tableHeaderTablet: {
     paddingVertical: 16,
   },
   headerCell: {
+    flex: 1,
     paddingHorizontal: 12,
     justifyContent: 'center',
     borderRightWidth: 1,
     borderRightColor: COLORS.neutral[200],
+    minWidth: 100,
   },
   headerText: {
     fontSize: 12,
@@ -773,15 +772,13 @@ const styles = StyleSheet.create({
     color: COLORS.neutral[700],
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    textAlign: 'center',
   },
   tableRow: {
     flexDirection: 'row',
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.neutral[200],
-    minHeight: 60,
-  },
-  tableRowTablet: {
     minHeight: 80,
   },
   outsideMonthRow: {
@@ -796,37 +793,17 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
   cell: {
+    flex: 1,
     paddingHorizontal: 12,
     paddingVertical: 8,
     justifyContent: 'center',
     borderRightWidth: 1,
     borderRightColor: COLORS.neutral[200],
-  },
-  dateColumn: {
-    width: 100,
     minWidth: 100,
-  },
-  dateColumnTablet: {
-    width: 120,
-    minWidth: 120,
-  },
-  dataColumn: {
-    width: 100,
-    minWidth: 100,
-  },
-  dataColumnTablet: {
-    width: 120,
-    minWidth: 120,
   },
   notesColumn: {
-    width: 200,
+    flex: 2,
     minWidth: 200,
-    flex: 1,
-  },
-  notesColumnTablet: {
-    width: 250,
-    minWidth: 250,
-    flex: 1,
   },
   dateContainer: {
     alignItems: 'center',
