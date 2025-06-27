@@ -86,7 +86,13 @@ export default function CalendarScreen() {
       return 'transparent';
     }
     
-    return getCompletionColorForProgress(dayPlan.progress);
+    // Filter out habit-goals when calculating progress color
+    const realGoals = dayPlan.goals.filter(goal => !goal.id.startsWith('habit-'));
+    const realGoalsProgress = realGoals.length > 0 
+      ? realGoals.filter(goal => goal.completed).length / realGoals.length 
+      : 0;
+    
+    return getCompletionColorForProgress(realGoalsProgress);
   };
 
   const handleScheduleGoal = (goal: Goal, slot: { hour: number; minutes: number }) => {
@@ -119,7 +125,10 @@ export default function CalendarScreen() {
   const getScheduledGoalsForTimeSlot = (slot: { hour: number; minutes: number }) => {
     if (!selectedDayData.plan?.goals) return [];
     
-    return selectedDayData.plan.goals.filter(goal => {
+    // Filter out habit-goals from scheduled goals
+    const realGoals = selectedDayData.plan.goals.filter(goal => !goal.id.startsWith('habit-'));
+    
+    return realGoals.filter(goal => {
       if (!goal.scheduledTime) return false;
       
       const startTime = new Date(goal.scheduledTime.start);
@@ -143,7 +152,11 @@ export default function CalendarScreen() {
   // Create schedule blocks for better visualization
   const createScheduleBlocks = () => {
     const blocks = [];
-    const scheduledGoals = selectedDayData.plan?.goals.filter(goal => goal.scheduledTime) || [];
+    if (!selectedDayData.plan?.goals) return blocks;
+    
+    // Filter out habit-goals from scheduled goals
+    const realGoals = selectedDayData.plan.goals.filter(goal => !goal.id.startsWith('habit-'));
+    const scheduledGoals = realGoals.filter(goal => goal.scheduledTime);
     
     // Sort goals by start time
     const sortedGoals = scheduledGoals.sort((a, b) => {
@@ -169,7 +182,11 @@ export default function CalendarScreen() {
   };
 
   const scheduleBlocks = createScheduleBlocks();
-  const unscheduledGoals = selectedDayData.plan?.goals.filter(goal => !goal.scheduledTime) || [];
+  
+  // Filter out habit-goals from unscheduled goals
+  const unscheduledGoals = selectedDayData.plan?.goals.filter(goal => 
+    !goal.scheduledTime && !goal.id.startsWith('habit-')
+  ) || [];
 
   const renderCalendarView = () => (
     <>
@@ -247,12 +264,24 @@ export default function CalendarScreen() {
         >
           {/* Daily Summary Cards */}
           <View style={styles.summaryCards}>
-            {/* Goals Summary */}
+            {/* Goals Summary - Only count real goals, not habits */}
             {selectedDayData.plan && (
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryCardTitle}>Goals</Text>
                 <Text style={styles.summaryCardValue}>
-                  {selectedDayData.plan.goalsCompleted}/{selectedDayData.plan.goals.length}
+                  {selectedDayData.plan.goals.filter(g => !g.id.startsWith('habit-') && g.completed).length}/
+                  {selectedDayData.plan.goals.filter(g => !g.id.startsWith('habit-')).length}
+                </Text>
+                <Text style={styles.summaryCardLabel}>completed</Text>
+              </View>
+            )}
+            
+            {/* Habits Summary */}
+            {selectedDayData.habits.length > 0 && (
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryCardTitle}>Habits</Text>
+                <Text style={styles.summaryCardValue}>
+                  {selectedDayData.habits.filter(h => h.completed).length}/{habits.filter(h => h.isActive).length}
                 </Text>
                 <Text style={styles.summaryCardLabel}>completed</Text>
               </View>
@@ -281,17 +310,6 @@ export default function CalendarScreen() {
                 <Text style={styles.summaryCardLabel}>
                   Quality: {selectedDayData.sleep.quality}/10
                 </Text>
-              </View>
-            )}
-            
-            {/* Habits Summary */}
-            {selectedDayData.habits.length > 0 && (
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryCardTitle}>Habits</Text>
-                <Text style={styles.summaryCardValue}>
-                  {selectedDayData.habits.filter(h => h.completed).length}/{habits.filter(h => h.isActive).length}
-                </Text>
-                <Text style={styles.summaryCardLabel}>completed</Text>
               </View>
             )}
           </View>
@@ -393,6 +411,39 @@ export default function CalendarScreen() {
                     </View>
                   </Animated.View>
                 ))}
+              </View>
+            </View>
+          )}
+
+          {/* Habits Section */}
+          {selectedDayData.habits.length > 0 && (
+            <View style={styles.habitsSection}>
+              <Text style={styles.sectionTitle}>
+                Habits ({selectedDayData.habits.filter(h => h.completed).length}/{habits.filter(h => h.isActive).length})
+              </Text>
+              
+              <View style={styles.habitsList}>
+                {habits.filter(h => h.isActive).map((habit) => {
+                  const habitEntry = selectedDayData.habits.find(entry => entry.habitId === habit.id);
+                  return (
+                    <View key={habit.id} style={styles.habitItem}>
+                      <View style={[styles.habitDot, { backgroundColor: habit.color }]} />
+                      <Text style={[
+                        styles.habitText,
+                        habitEntry?.completed && styles.completedText
+                      ]}>
+                        {habit.title}
+                      </Text>
+                      <View style={styles.statusIcon}>
+                        {habitEntry?.completed ? (
+                          <CheckCircle size={18} color={COLORS.success[600]} />
+                        ) : (
+                          <Circle size={18} color={COLORS.neutral[400]} />
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
               </View>
             </View>
           )}
@@ -883,6 +934,40 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[600],
     lineHeight: 18,
+  },
+  habitsSection: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+  },
+  habitsList: {
+    gap: 8,
+  },
+  habitItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
+    padding: 12,
+    shadowColor: COLORS.neutral[900],
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  habitDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 12,
+  },
+  habitText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[700],
   },
   journalSection: {
     paddingHorizontal: 20,

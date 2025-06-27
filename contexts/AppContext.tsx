@@ -532,7 +532,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         const quoteIndex = todayNum % QUOTES.length;
         setQuoteOfTheDay(QUOTES[quoteIndex]);
         
-        // Initialize today's plan with habits only
+        // Initialize today's plan - Load existing plan or create empty one
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         const todayPlan = JSON.parse(storedDailyPlans || '[]').find(
           (plan: DailyPlan) => plan.date === todayStr
@@ -541,37 +541,8 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         if (todayPlan) {
           setTodaysGoals(todayPlan.goals);
         } else {
-          // Create today's plan with habits only (no automatic goals)
-          const storedHabitsData = JSON.parse(storedHabits || '[]');
-          const activeHabits = storedHabitsData.filter((habit: Habit) => habit.isActive);
-          
-          // Convert active habits to goals for today's plan
-          const habitGoals: Goal[] = activeHabits.map((habit: Habit) => ({
-            id: `habit-${habit.id}-${todayStr}`,
-            title: habit.title,
-            description: habit.description,
-            completed: false,
-            isAutomatic: true, // Habits are automatically added
-            hasTimer: false,
-            createdAt: new Date().toISOString(),
-          }));
-          
-          setTodaysGoals(habitGoals);
-          
-          // Create today's plan
-          if (habitGoals.length > 0) {
-            const newPlan: DailyPlan = {
-              date: todayStr,
-              goals: habitGoals,
-              goalsCompleted: 0,
-              progress: 0,
-              quote: quoteOfTheDay,
-            };
-            
-            const updatedPlans = [...JSON.parse(storedDailyPlans || '[]'), newPlan];
-            setDailyPlans(updatedPlans);
-            await AsyncStorage.setItem('dailyPlans', JSON.stringify(updatedPlans));
-          }
+          // Start with empty goals - habits will be added separately
+          setTodaysGoals([]);
         }
         
         // Set up notifications if needed
@@ -589,9 +560,10 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     loadData();
   }, []);
 
-  // Calculate progress for today
+  // Calculate progress for today - Only count real goals, not habits
   const progressToday = todaysGoals.length > 0
-    ? todaysGoals.filter(goal => goal.completed).length / todaysGoals.length
+    ? todaysGoals.filter(goal => !goal.id.startsWith('habit-') && goal.completed).length / 
+      todaysGoals.filter(goal => !goal.id.startsWith('habit-')).length
     : 0;
   
   // Update progress whenever todaysGoals changes
@@ -600,8 +572,11 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     
     const updateTodaysPlan = async () => {
       const today = format(new Date(), 'yyyy-MM-dd');
-      const completedGoals = todaysGoals.filter(goal => goal.completed).length;
-      const progress = todaysGoals.length > 0 ? completedGoals / todaysGoals.length : 0;
+      
+      // Only count real goals for progress calculation
+      const realGoals = todaysGoals.filter(goal => !goal.id.startsWith('habit-'));
+      const completedGoals = realGoals.filter(goal => goal.completed).length;
+      const progress = realGoals.length > 0 ? completedGoals / realGoals.length : 0;
       
       // Update or create today's plan
       const planIndex = dailyPlans.findIndex(plan => plan.date === today);
@@ -634,35 +609,6 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     
     updateTodaysPlan();
   }, [todaysGoals, loaded]);
-  
-  // Auto-add new habits to today's goals when habits change (habits only, no automatic goals)
-  useEffect(() => {
-    if (!loaded) return;
-    
-    const updateTodaysGoalsWithHabits = async () => {
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const activeHabits = habits.filter(habit => habit.isActive);
-      
-      // Convert active habits to goals (habits only)
-      const habitGoals: Goal[] = activeHabits.map((habit: Habit) => ({
-        id: `habit-${habit.id}-${today}`,
-        title: habit.title,
-        description: habit.description,
-        completed: false,
-        isAutomatic: true,
-        hasTimer: false,
-        createdAt: new Date().toISOString(),
-      }));
-      
-      // Get existing non-habit goals for today
-      const existingNonHabitGoals = todaysGoals.filter(goal => !goal.id.startsWith('habit-'));
-      
-      // Combine habit goals with existing non-habit goals
-      setTodaysGoals([...habitGoals, ...existingNonHabitGoals]);
-    };
-    
-    updateTodaysGoalsWithHabits();
-  }, [habits, loaded]);
   
   // Persist data whenever it changes
   useEffect(() => {
@@ -752,8 +698,10 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         : goal
     ));
     
-    // Award XP
-    awardXP(XP_REWARDS.GOAL_SUBTASK_COMPLETED, 'Goal completed');
+    // Award XP only for real goals, not habits
+    if (!goalId.startsWith('habit-')) {
+      awardXP(XP_REWARDS.GOAL_SUBTASK_COMPLETED, 'Goal completed');
+    }
   };
   
   // Mark a goal as incomplete
@@ -775,7 +723,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     return goalsLibrary.find(goal => goal.id === goalId);
   };
   
-  // Calculate average progress
+  // Calculate average progress - Only count real goals, not habits
   const getAverageProgress = (startDate?: Date, endDate?: Date) => {
     if (dailyPlans.length === 0) return 0;
     
@@ -795,8 +743,15 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     
     if (filteredPlans.length === 0) return 0;
     
-    const total = filteredPlans.reduce((sum, plan) => sum + plan.progress, 0);
-    return total / filteredPlans.length;
+    // Calculate progress based on real goals only
+    const progressValues = filteredPlans.map(plan => {
+      const realGoals = plan.goals.filter(goal => !goal.id.startsWith('habit-'));
+      if (realGoals.length === 0) return 0;
+      return realGoals.filter(goal => goal.completed).length / realGoals.length;
+    });
+    
+    const total = progressValues.reduce((sum, progress) => sum + progress, 0);
+    return total / progressValues.length;
   };
   
   // Mark a goal for timer
