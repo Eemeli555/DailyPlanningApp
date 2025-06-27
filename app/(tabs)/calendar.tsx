@@ -1,8 +1,8 @@
 import { useContext, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isSameDay, addMonths, subMonths, parse, set } from 'date-fns';
-import { ChevronLeft, ChevronRight, Clock, CircleCheck as CheckCircle, Circle } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Clock, CircleCheck as CheckCircle, Circle, Calendar as CalendarIcon, BarChart3 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
@@ -11,24 +11,33 @@ import { COLORS } from '@/constants/theme';
 import GoalItem from '@/components/GoalItem';
 import { Goal } from '@/types';
 import { getCompletionColorForProgress } from '@/utils/helpers';
+import DailyPlannerTable from '@/components/DailyPlannerTable';
 
-// Generate time slots for every 30 minutes from 6 AM to 10 PM
-const TIME_SLOTS = Array.from({ length: 32 }, (_, i) => {
-  const hour = Math.floor(i / 2) + 6;
-  const minutes = (i % 2) * 30;
-  return { hour, minutes };
-});
+type CalendarView = 'calendar' | 'planner';
+
+const { width: screenWidth } = Dimensions.get('window');
+const isTablet = screenWidth > 768;
 
 export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { dailyPlans, updateGoalSchedule } = useContext(AppContext);
+  const { 
+    dailyPlans, 
+    updateGoalSchedule, 
+    journalEntries, 
+    sleepData, 
+    socialMediaData, 
+    habits, 
+    habitEntries,
+    getDailyEntry
+  } = useContext(AppContext);
   
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<{ hour: number; minutes: number } | null>(null);
+  const [calendarView, setCalendarView] = useState<CalendarView>('calendar');
   
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -39,15 +48,43 @@ export default function CalendarScreen() {
   const goToPreviousMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const goToNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
   
-  // Get the goals for selected date
-  const selectedDayPlan = dailyPlans.find(plan => 
-    isSameDay(new Date(plan.date), selectedDate)
-  );
+  // Get comprehensive data for selected date
+  const getSelectedDayData = () => {
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    const dayPlan = dailyPlans.find(plan => plan.date === dateStr);
+    const dayJournal = journalEntries.find(journal => journal.date === dateStr);
+    const daySleep = sleepData.find(sleep => sleep.date === dateStr);
+    const daySocial = socialMediaData.find(social => social.date === dateStr);
+    const dayHabits = habitEntries.filter(entry => entry.date === dateStr);
+    const dailyEntry = getDailyEntry(dateStr);
+    
+    return {
+      plan: dayPlan,
+      journal: dayJournal,
+      sleep: daySleep,
+      social: daySocial,
+      habits: dayHabits,
+      entry: dailyEntry,
+    };
+  };
+  
+  const selectedDayData = getSelectedDayData();
   
   const getDateColor = (date: Date) => {
-    const dayPlan = dailyPlans.find(plan => isSameDay(new Date(plan.date), date));
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const dayPlan = dailyPlans.find(plan => plan.date === dateStr);
     
-    if (!dayPlan) return 'transparent';
+    if (!dayPlan) {
+      // Check if there's any data for this day
+      const hasJournal = journalEntries.some(journal => journal.date === dateStr);
+      const hasSleep = sleepData.some(sleep => sleep.date === dateStr);
+      const hasHabits = habitEntries.some(entry => entry.date === dateStr);
+      
+      if (hasJournal || hasSleep || hasHabits) {
+        return COLORS.neutral[300]; // Light gray for partial data
+      }
+      return 'transparent';
+    }
     
     return getCompletionColorForProgress(dayPlan.progress);
   };
@@ -80,9 +117,9 @@ export default function CalendarScreen() {
   };
 
   const getScheduledGoalsForTimeSlot = (slot: { hour: number; minutes: number }) => {
-    if (!selectedDayPlan?.goals) return [];
+    if (!selectedDayData.plan?.goals) return [];
     
-    return selectedDayPlan.goals.filter(goal => {
+    return selectedDayData.plan.goals.filter(goal => {
       if (!goal.scheduledTime) return false;
       
       const startTime = new Date(goal.scheduledTime.start);
@@ -106,7 +143,7 @@ export default function CalendarScreen() {
   // Create schedule blocks for better visualization
   const createScheduleBlocks = () => {
     const blocks = [];
-    const scheduledGoals = selectedDayPlan?.goals.filter(goal => goal.scheduledTime) || [];
+    const scheduledGoals = selectedDayData.plan?.goals.filter(goal => goal.scheduledTime) || [];
     
     // Sort goals by start time
     const sortedGoals = scheduledGoals.sort((a, b) => {
@@ -132,15 +169,10 @@ export default function CalendarScreen() {
   };
 
   const scheduleBlocks = createScheduleBlocks();
-  const unscheduledGoals = selectedDayPlan?.goals.filter(goal => !goal.scheduledTime) || [];
+  const unscheduledGoals = selectedDayData.plan?.goals.filter(goal => !goal.scheduledTime) || [];
 
-  return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Calendar</Text>
-        <Text style={styles.subtitle}>Track your daily progress</Text>
-      </View>
-      
+  const renderCalendarView = () => (
+    <>
       <View style={styles.calendarHeader}>
         <TouchableOpacity onPress={goToPreviousMonth}>
           <ChevronLeft size={24} color={COLORS.neutral[600]} />
@@ -159,7 +191,7 @@ export default function CalendarScreen() {
         ))}
       </View>
       
-      <View style={styles.calendar}>
+      <View style={[styles.calendar, isTablet && styles.calendarTablet]}>
         {monthDays.map((day, i) => {
           const dateColor = getDateColor(day);
           const isSelected = isSameDay(day, selectedDate);
@@ -169,6 +201,7 @@ export default function CalendarScreen() {
               key={day.toString()}
               style={[
                 styles.calendarDay,
+                isTablet && styles.calendarDayTablet,
                 isToday(day) && styles.today,
                 isSelected && styles.selectedDay,
               ]}
@@ -177,6 +210,7 @@ export default function CalendarScreen() {
               <View
                 style={[
                   styles.dateCircle,
+                  isTablet && styles.dateCircleTablet,
                   dateColor !== 'transparent' && { backgroundColor: dateColor },
                   isSelected && styles.selectedDateCircle,
                 ]}
@@ -184,6 +218,7 @@ export default function CalendarScreen() {
                 <Text
                   style={[
                     styles.calendarDayText,
+                    isTablet && styles.calendarDayTextTablet,
                     !isSameMonth(day, currentMonth) && styles.outsideMonthText,
                     isToday(day) && styles.todayText,
                     isSelected && styles.selectedDayText,
@@ -202,7 +237,7 @@ export default function CalendarScreen() {
           <Text style={styles.selectedDateTitle}>
             {isToday(selectedDate) ? 'Today' : format(selectedDate, 'EEEE, MMMM d')}
           </Text>
-          <Text style={styles.scheduleSubtitle}>Daily Schedule</Text>
+          <Text style={styles.scheduleSubtitle}>Daily Overview</Text>
         </View>
         
         <ScrollView
@@ -210,6 +245,57 @@ export default function CalendarScreen() {
           contentContainerStyle={styles.scheduleContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Daily Summary Cards */}
+          <View style={styles.summaryCards}>
+            {/* Goals Summary */}
+            {selectedDayData.plan && (
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryCardTitle}>Goals</Text>
+                <Text style={styles.summaryCardValue}>
+                  {selectedDayData.plan.goalsCompleted}/{selectedDayData.plan.goals.length}
+                </Text>
+                <Text style={styles.summaryCardLabel}>completed</Text>
+              </View>
+            )}
+            
+            {/* Mood Summary */}
+            {selectedDayData.journal && (
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryCardTitle}>Mood</Text>
+                <Text style={styles.summaryCardValue}>
+                  {selectedDayData.journal.mood}/5
+                </Text>
+                <Text style={styles.summaryCardLabel}>
+                  {selectedDayData.journal.mood >= 4 ? '😊' : selectedDayData.journal.mood >= 3 ? '😐' : '😕'}
+                </Text>
+              </View>
+            )}
+            
+            {/* Sleep Summary */}
+            {selectedDayData.sleep && (
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryCardTitle}>Sleep</Text>
+                <Text style={styles.summaryCardValue}>
+                  {selectedDayData.sleep.hoursSlept}h
+                </Text>
+                <Text style={styles.summaryCardLabel}>
+                  Quality: {selectedDayData.sleep.quality}/10
+                </Text>
+              </View>
+            )}
+            
+            {/* Habits Summary */}
+            {selectedDayData.habits.length > 0 && (
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryCardTitle}>Habits</Text>
+                <Text style={styles.summaryCardValue}>
+                  {selectedDayData.habits.filter(h => h.completed).length}/{habits.filter(h => h.isActive).length}
+                </Text>
+                <Text style={styles.summaryCardLabel}>completed</Text>
+              </View>
+            )}
+          </View>
+
           {/* Scheduled Goals - Clean Block Format */}
           {scheduleBlocks.length > 0 && (
             <View style={styles.scheduledSection}>
@@ -311,18 +397,97 @@ export default function CalendarScreen() {
             </View>
           )}
 
+          {/* Journal Entry Preview */}
+          {selectedDayData.journal && (
+            <View style={styles.journalSection}>
+              <Text style={styles.sectionTitle}>Journal Entry</Text>
+              <View style={styles.journalCard}>
+                <View style={styles.journalHeader}>
+                  <Text style={styles.journalType}>
+                    {selectedDayData.journal.type === 'morning' ? '🌅 Morning' : 
+                     selectedDayData.journal.type === 'evening' ? '🌙 Evening' : '📝 Free'}
+                  </Text>
+                  <Text style={styles.journalMood}>
+                    Mood: {selectedDayData.journal.mood}/5
+                  </Text>
+                </View>
+                {selectedDayData.journal.reflection && (
+                  <Text style={styles.journalText} numberOfLines={3}>
+                    {selectedDayData.journal.reflection}
+                  </Text>
+                )}
+                {selectedDayData.journal.mainFocus && (
+                  <Text style={styles.journalFocus}>
+                    Focus: {selectedDayData.journal.mainFocus}
+                  </Text>
+                )}
+              </View>
+            </View>
+          )}
+
           {/* Empty State */}
-          {scheduleBlocks.length === 0 && unscheduledGoals.length === 0 && (
+          {!selectedDayData.plan && !selectedDayData.journal && !selectedDayData.sleep && selectedDayData.habits.length === 0 && (
             <View style={styles.emptyState}>
               <Clock size={48} color={COLORS.neutral[400]} />
-              <Text style={styles.emptyStateText}>No goals for this day</Text>
+              <Text style={styles.emptyStateText}>No data for this day</Text>
               <Text style={styles.emptyStateSubtext}>
-                Add goals to your library and schedule them for better planning
+                Start planning and tracking to see your daily overview here
               </Text>
             </View>
           )}
         </ScrollView>
       </View>
+    </>
+  );
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Calendar & Planning</Text>
+        <Text style={styles.subtitle}>View your progress and plan your days</Text>
+        
+        {/* View Toggle */}
+        <View style={styles.viewToggle}>
+          <TouchableOpacity
+            style={[
+              styles.toggleButton,
+              calendarView === 'calendar' && styles.activeToggle
+            ]}
+            onPress={() => setCalendarView('calendar')}
+          >
+            <CalendarIcon size={16} color={calendarView === 'calendar' ? COLORS.white : COLORS.neutral[600]} />
+            <Text style={[
+              styles.toggleText,
+              calendarView === 'calendar' && styles.activeToggleText
+            ]}>
+              Calendar
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.toggleButton,
+              calendarView === 'planner' && styles.activeToggle
+            ]}
+            onPress={() => setCalendarView('planner')}
+          >
+            <BarChart3 size={16} color={calendarView === 'planner' ? COLORS.white : COLORS.neutral[600]} />
+            <Text style={[
+              styles.toggleText,
+              calendarView === 'planner' && styles.activeToggleText
+            ]}>
+              Planner
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {calendarView === 'calendar' ? renderCalendarView() : (
+        <DailyPlannerTable 
+          currentDate={currentMonth}
+          onDateChange={setCurrentMonth}
+        />
+      )}
 
       <Modal
         visible={showScheduleModal}
@@ -373,6 +538,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.neutral[200],
   },
   title: {
     fontSize: 28,
@@ -384,6 +551,34 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[500],
     marginTop: 4,
+    marginBottom: 16,
+  },
+  viewToggle: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.neutral[100],
+    borderRadius: 8,
+    padding: 4,
+  },
+  toggleButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    gap: 6,
+  },
+  activeToggle: {
+    backgroundColor: COLORS.primary[600],
+  },
+  toggleText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.neutral[600],
+  },
+  activeToggleText: {
+    color: COLORS.white,
   },
   calendarHeader: {
     flexDirection: 'row',
@@ -416,12 +611,18 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     paddingHorizontal: 10,
   },
+  calendarTablet: {
+    paddingHorizontal: 40,
+  },
   calendarDay: {
     width: '14.28%',
     height: 44,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  calendarDayTablet: {
+    height: 60,
   },
   dateCircle: {
     width: 32,
@@ -430,10 +631,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  dateCircleTablet: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
   calendarDayText: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[800],
+  },
+  calendarDayTextTablet: {
+    fontSize: 16,
   },
   outsideMonthText: {
     color: COLORS.neutral[400],
@@ -486,6 +695,46 @@ const styles = StyleSheet.create({
   },
   scheduleContent: {
     paddingBottom: 24,
+  },
+  summaryCards: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    gap: 12,
+  },
+  summaryCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    minWidth: 80,
+    flex: 1,
+    shadowColor: COLORS.neutral[900],
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  summaryCardTitle: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.neutral[600],
+    marginBottom: 4,
+  },
+  summaryCardValue: {
+    fontSize: 18,
+    fontFamily: 'Inter-Bold',
+    color: COLORS.neutral[800],
+  },
+  summaryCardLabel: {
+    fontSize: 10,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[500],
+    marginTop: 2,
   },
   scheduledSection: {
     paddingHorizontal: 20,
@@ -625,6 +874,56 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[600],
     lineHeight: 18,
+  },
+  journalSection: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+  },
+  journalCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: COLORS.neutral[900],
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  journalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  journalType: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.neutral[700],
+  },
+  journalMood: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.neutral[600],
+  },
+  journalText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[700],
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  journalFocus: {
+    fontSize: 13,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.primary[600],
+    backgroundColor: COLORS.primary[50],
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
   },
   emptyState: {
     alignItems: 'center',

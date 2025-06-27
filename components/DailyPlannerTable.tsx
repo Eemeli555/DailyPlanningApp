@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Dimensions } from 'react-native';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addDays, subDays, isToday, isSameMonth } from 'date-fns';
 import { ChevronLeft, ChevronRight, Plus, Settings, CreditCard as Edit3, Star, Calendar } from 'lucide-react-native';
 import { AppContext } from '@/contexts/AppContext';
@@ -12,6 +12,9 @@ interface DailyPlannerTableProps {
   onDateChange: (date: Date) => void;
 }
 
+const { width: screenWidth } = Dimensions.get('window');
+const isTablet = screenWidth > 768;
+
 const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps) => {
   const { 
     dailyEntries, 
@@ -20,7 +23,16 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
     updateDailyEntry, 
     addCustomColumn,
     removeCustomColumn,
-    updatePlannerSettings 
+    updatePlannerSettings,
+    dailyPlans,
+    todaysGoals,
+    habits,
+    habitEntries,
+    journalEntries,
+    sleepData,
+    socialMediaData,
+    productiveActivities,
+    activityEntries
   } = useContext(AppContext);
   
   const [selectedEntry, setSelectedEntry] = useState<DailyEntry | null>(null);
@@ -59,16 +71,27 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
     let entry = getDailyEntry(dateStr);
     
     if (!entry) {
-      // Create a new entry for this day
+      // Create a comprehensive entry combining all data sources
+      const dayPlan = dailyPlans.find(plan => plan.date === dateStr);
+      const dayJournal = journalEntries.find(journal => journal.date === dateStr);
+      const daySleep = sleepData.find(sleep => sleep.date === dateStr);
+      const daySocial = socialMediaData.find(social => social.date === dateStr);
+      const dayHabits = habitEntries.filter(entry => entry.date === dateStr);
+      const dayActivities = activityEntries.filter(entry => entry.date === dateStr);
+      
       const newEntry: DailyEntry = {
         id: `entry-${dateStr}`,
         date: dateStr,
-        goals: [],
-        sleep: { hours: 0, quality: 'fair' },
+        goals: dayPlan?.goals.map(g => g.title) || [],
+        sleep: { 
+          hours: daySleep?.hoursSlept || 0, 
+          quality: daySleep ? (daySleep.quality <= 5 ? 'poor' : daySleep.quality <= 7 ? 'fair' : daySleep.quality <= 8 ? 'good' : 'excellent') : 'fair',
+          notes: daySleep?.notes
+        },
         meals: {},
         workouts: { completed: [], duration: 0 },
-        thoughts: '',
-        rating: 0,
+        thoughts: dayJournal?.reflection || '',
+        rating: dayPlan ? Math.round(dayPlan.progress * 100) : 0,
         customFields: {},
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -141,7 +164,36 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
   
   const getEntryForDay = (day: Date) => {
     const dateStr = format(day, 'yyyy-MM-dd');
-    return getDailyEntry(dateStr);
+    let entry = getDailyEntry(dateStr);
+    
+    // If no entry exists, create one from available data
+    if (!entry) {
+      const dayPlan = dailyPlans.find(plan => plan.date === dateStr);
+      const dayJournal = journalEntries.find(journal => journal.date === dateStr);
+      const daySleep = sleepData.find(sleep => sleep.date === dateStr);
+      const daySocial = socialMediaData.find(social => social.date === dateStr);
+      
+      if (dayPlan || dayJournal || daySleep || daySocial) {
+        entry = {
+          id: `temp-${dateStr}`,
+          date: dateStr,
+          goals: dayPlan?.goals.map(g => g.title) || [],
+          sleep: { 
+            hours: daySleep?.hoursSlept || 0, 
+            quality: daySleep ? (daySleep.quality <= 5 ? 'poor' : daySleep.quality <= 7 ? 'fair' : daySleep.quality <= 8 ? 'good' : 'excellent') : 'fair'
+          },
+          meals: {},
+          workouts: { completed: [], duration: 0 },
+          thoughts: dayJournal?.reflection || '',
+          rating: dayPlan ? Math.round(dayPlan.progress * 100) : (dayJournal?.mood ? dayJournal.mood * 20 : 0),
+          customFields: {},
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+      }
+    }
+    
+    return entry;
   };
   
   const getRatingColor = (rating: number) => {
@@ -162,27 +214,27 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
   };
 
   const renderTableHeader = () => (
-    <View style={styles.tableHeader}>
-      <View style={[styles.headerCell, styles.dateColumn]}>
+    <View style={[styles.tableHeader, isTablet && styles.tableHeaderTablet]}>
+      <View style={[styles.headerCell, styles.dateColumn, isTablet && styles.dateColumnTablet]}>
         <Text style={styles.headerText}>Date</Text>
       </View>
-      <View style={[styles.headerCell, styles.dataColumn]}>
+      <View style={[styles.headerCell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
         <Text style={styles.headerText}>Rating</Text>
       </View>
-      <View style={[styles.headerCell, styles.dataColumn]}>
+      <View style={[styles.headerCell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
         <Text style={styles.headerText}>Sleep</Text>
       </View>
-      <View style={[styles.headerCell, styles.dataColumn]}>
+      <View style={[styles.headerCell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
         <Text style={styles.headerText}>Goals</Text>
       </View>
-      <View style={[styles.headerCell, styles.dataColumn]}>
-        <Text style={styles.headerText}>Workouts</Text>
+      <View style={[styles.headerCell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
+        <Text style={styles.headerText}>Mood</Text>
       </View>
-      <View style={[styles.headerCell, styles.notesColumn]}>
+      <View style={[styles.headerCell, styles.notesColumn, isTablet && styles.notesColumnTablet]}>
         <Text style={styles.headerText}>Notes</Text>
       </View>
       {plannerSettings.customColumns.map(column => (
-        <View key={column.id} style={[styles.headerCell, styles.dataColumn]}>
+        <View key={column.id} style={[styles.headerCell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
           <Text style={styles.headerText}>{column.name}</Text>
         </View>
       ))}
@@ -193,12 +245,22 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
     const entry = getEntryForDay(day);
     const isCurrentMonth = isSameMonth(day, currentDate);
     const isTodayDate = isToday(day);
+    const dateStr = format(day, 'yyyy-MM-dd');
+    
+    // Get additional data for this day
+    const dayPlan = dailyPlans.find(plan => plan.date === dateStr);
+    const dayJournal = journalEntries.find(journal => journal.date === dateStr);
+    const daySleep = sleepData.find(sleep => sleep.date === dateStr);
+    const dayHabits = habitEntries.filter(habitEntry => habitEntry.date === dateStr);
+    const completedHabits = dayHabits.filter(h => h.completed).length;
+    const totalHabits = habits.filter(h => h.isActive).length;
     
     return (
       <TouchableOpacity
         key={index}
         style={[
           styles.tableRow,
+          isTablet && styles.tableRowTablet,
           !isCurrentMonth && styles.outsideMonthRow,
           isTodayDate && styles.todayRow,
           entry && styles.hasDataRow,
@@ -206,7 +268,7 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
         onPress={() => handleDayPress(day)}
       >
         {/* Date Column */}
-        <View style={[styles.cell, styles.dateColumn]}>
+        <View style={[styles.cell, styles.dateColumn, isTablet && styles.dateColumnTablet]}>
           <View style={styles.dateContainer}>
             <Text style={[
               styles.dayNumber,
@@ -225,7 +287,7 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
         </View>
 
         {/* Rating Column */}
-        <View style={[styles.cell, styles.dataColumn]}>
+        <View style={[styles.cell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
           {entry?.rating ? (
             <View style={styles.ratingContainer}>
               <View style={[
@@ -235,19 +297,30 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
                 <Text style={styles.ratingText}>{entry.rating}%</Text>
               </View>
             </View>
+          ) : dayPlan ? (
+            <View style={styles.ratingContainer}>
+              <View style={[
+                styles.ratingBadge,
+                { backgroundColor: getRatingColor(Math.round(dayPlan.progress * 100)) }
+              ]}>
+                <Text style={styles.ratingText}>{Math.round(dayPlan.progress * 100)}%</Text>
+              </View>
+            </View>
           ) : (
             <Text style={styles.emptyCell}>—</Text>
           )}
         </View>
 
         {/* Sleep Column */}
-        <View style={[styles.cell, styles.dataColumn]}>
-          {entry?.sleep.hours ? (
+        <View style={[styles.cell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
+          {entry?.sleep.hours || daySleep ? (
             <View style={styles.sleepContainer}>
-              <Text style={styles.sleepHours}>{entry.sleep.hours}h</Text>
+              <Text style={styles.sleepHours}>
+                {entry?.sleep.hours || daySleep?.hoursSlept || 0}h
+              </Text>
               <View style={[
                 styles.qualityDot,
-                { backgroundColor: getSleepQualityColor(entry.sleep.quality) }
+                { backgroundColor: getSleepQualityColor(entry?.sleep.quality || 'fair') }
               ]} />
             </View>
           ) : (
@@ -256,8 +329,15 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
         </View>
 
         {/* Goals Column */}
-        <View style={[styles.cell, styles.dataColumn]}>
-          {entry?.goals.length ? (
+        <View style={[styles.cell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
+          {dayPlan?.goals.length ? (
+            <View style={styles.goalsContainer}>
+              <Text style={styles.goalsCount}>
+                {dayPlan.goalsCompleted}/{dayPlan.goals.length}
+              </Text>
+              <Text style={styles.goalsLabel}>goals</Text>
+            </View>
+          ) : entry?.goals.length ? (
             <View style={styles.goalsContainer}>
               <Text style={styles.goalsCount}>{entry.goals.length}</Text>
               <Text style={styles.goalsLabel}>goals</Text>
@@ -267,11 +347,21 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
           )}
         </View>
 
-        {/* Workouts Column */}
-        <View style={[styles.cell, styles.dataColumn]}>
-          {entry?.workouts.duration ? (
-            <View style={styles.workoutContainer}>
-              <Text style={styles.workoutDuration}>{entry.workouts.duration}m</Text>
+        {/* Mood Column */}
+        <View style={[styles.cell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
+          {dayJournal?.mood ? (
+            <View style={styles.moodContainer}>
+              <Text style={styles.moodValue}>{dayJournal.mood}/5</Text>
+              <Text style={styles.moodEmoji}>
+                {dayJournal.mood >= 4 ? '😊' : dayJournal.mood >= 3 ? '😐' : '😕'}
+              </Text>
+            </View>
+          ) : totalHabits > 0 ? (
+            <View style={styles.habitsContainer}>
+              <Text style={styles.habitsCount}>
+                {completedHabits}/{totalHabits}
+              </Text>
+              <Text style={styles.habitsLabel}>habits</Text>
             </View>
           ) : (
             <Text style={styles.emptyCell}>—</Text>
@@ -279,10 +369,10 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
         </View>
 
         {/* Notes Column */}
-        <View style={[styles.cell, styles.notesColumn]}>
-          {entry?.thoughts ? (
+        <View style={[styles.cell, styles.notesColumn, isTablet && styles.notesColumnTablet]}>
+          {entry?.thoughts || dayJournal?.reflection ? (
             <Text style={styles.notesText} numberOfLines={2}>
-              {entry.thoughts}
+              {entry?.thoughts || dayJournal?.reflection}
             </Text>
           ) : (
             <Text style={styles.emptyCell}>—</Text>
@@ -291,7 +381,7 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
 
         {/* Custom Columns */}
         {plannerSettings.customColumns.map(column => (
-          <View key={column.id} style={[styles.cell, styles.dataColumn]}>
+          <View key={column.id} style={[styles.cell, styles.dataColumn, isTablet && styles.dataColumnTablet]}>
             {entry?.customFields[column.id] ? (
               column.type === 'rating' ? (
                 <View style={[
@@ -317,7 +407,7 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, isTablet && styles.headerTablet]}>
         <TouchableOpacity onPress={goToPreviousMonth} style={styles.navButton}>
           <ChevronLeft size={24} color={COLORS.neutral[600]} />
         </TouchableOpacity>
@@ -341,7 +431,7 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
       {/* Table Container */}
       <ScrollView style={styles.tableContainer} showsVerticalScrollIndicator={false}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.table}>
+          <View style={[styles.table, isTablet && styles.tableTablet]}>
             {renderTableHeader()}
             {calendarDays.map((day, index) => renderTableRow(day, index))}
           </View>
@@ -437,27 +527,6 @@ const DailyPlannerTable = ({ currentDate, onDateChange }: DailyPlannerTableProps
                       />
                     </View>
                   ))}
-                </View>
-                
-                {/* Workouts */}
-                <View style={styles.fieldSection}>
-                  <Text style={styles.fieldLabel}>Workouts</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={selectedEntry.workouts.notes || ''}
-                    onChangeText={(text) => updateEntryField('workouts.notes', text)}
-                    placeholder="Describe your workouts..."
-                  />
-                  <View style={styles.durationField}>
-                    <Text style={styles.subLabel}>Duration (minutes)</Text>
-                    <TextInput
-                      style={styles.numberInput}
-                      value={selectedEntry.workouts.duration.toString()}
-                      onChangeText={(text) => updateEntryField('workouts.duration', parseInt(text) || 0)}
-                      keyboardType="numeric"
-                      placeholder="60"
-                    />
-                  </View>
                 </View>
                 
                 {/* Thoughts */}
@@ -651,6 +720,9 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.neutral[200],
     backgroundColor: COLORS.white,
   },
+  headerTablet: {
+    paddingHorizontal: 40,
+  },
   navButton: {
     padding: 8,
   },
@@ -671,12 +743,18 @@ const styles = StyleSheet.create({
   table: {
     minWidth: 800,
   },
+  tableTablet: {
+    minWidth: 1200,
+  },
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: COLORS.neutral[100],
     borderBottomWidth: 2,
     borderBottomColor: COLORS.neutral[300],
     paddingVertical: 12,
+  },
+  tableHeaderTablet: {
+    paddingVertical: 16,
   },
   headerCell: {
     paddingHorizontal: 12,
@@ -697,6 +775,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.neutral[200],
     minHeight: 60,
+  },
+  tableRowTablet: {
+    minHeight: 80,
   },
   outsideMonthRow: {
     backgroundColor: COLORS.neutral[50],
@@ -719,11 +800,20 @@ const styles = StyleSheet.create({
   dateColumn: {
     width: 80,
   },
+  dateColumnTablet: {
+    width: 120,
+  },
   dataColumn: {
     width: 80,
   },
+  dataColumnTablet: {
+    width: 100,
+  },
   notesColumn: {
     width: 150,
+  },
+  notesColumnTablet: {
+    width: 200,
   },
   dateContainer: {
     alignItems: 'center',
@@ -789,13 +879,30 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[500],
   },
-  workoutContainer: {
+  moodContainer: {
     alignItems: 'center',
+    gap: 2,
   },
-  workoutDuration: {
+  moodValue: {
     fontSize: 12,
     fontFamily: 'Inter-SemiBold',
+    color: COLORS.secondary[600],
+  },
+  moodEmoji: {
+    fontSize: 14,
+  },
+  habitsContainer: {
+    alignItems: 'center',
+  },
+  habitsCount: {
+    fontSize: 12,
+    fontFamily: 'Inter-Bold',
     color: COLORS.accent[600],
+  },
+  habitsLabel: {
+    fontSize: 9,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[500],
   },
   notesText: {
     fontSize: 11,
@@ -919,9 +1026,6 @@ const styles = StyleSheet.create({
   },
   mealField: {
     marginBottom: 12,
-  },
-  durationField: {
-    marginTop: 8,
   },
   ratingInput: {
     width: 60,
