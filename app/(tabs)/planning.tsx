@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Plus, Target, Repeat, Dumbbell, ListTodo, Filter, Search } from 'lucide-react-native';
+import { Plus, Target, Repeat, Dumbbell, ListTodo, Filter, Search, Activity } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
@@ -12,9 +12,10 @@ import FloatingActionButton from '@/components/FloatingActionButton';
 import HabitCard from '@/components/HabitCard';
 import LongTermGoalCard from '@/components/LongTermGoalCard';
 import GoalItem from '@/components/GoalItem';
+import ProductiveActivityCard from '@/components/ProductiveActivityCard';
 import CreateChoiceModal from '@/components/CreateChoiceModal';
 
-type PlanningView = 'overview' | 'habits' | 'goals' | 'workouts';
+type PlanningView = 'overview' | 'habits' | 'goals' | 'workouts' | 'activities';
 
 export default function PlanningScreen() {
   const insets = useSafeAreaInsets();
@@ -25,6 +26,7 @@ export default function PlanningScreen() {
     longTermGoals, 
     goalsLibrary, 
     workouts,
+    productiveActivities,
     toggleHabitCompletion,
     toggleSubtask,
     toggleAutomaticGoal,
@@ -32,7 +34,10 @@ export default function PlanningScreen() {
     completeGoal,
     uncompleteGoal,
     setTimerForGoal,
-    updateGoalSchedule
+    updateGoalSchedule,
+    addActivityToToday,
+    updateProductiveActivity,
+    deleteProductiveActivity
   } = useContext(AppContext);
   
   const [currentView, setCurrentView] = useState<PlanningView>('overview');
@@ -47,6 +52,7 @@ export default function PlanningScreen() {
   const activeHabits = habits.filter(habit => habit.isActive);
   const inProgressGoals = longTermGoals.filter(goal => goal.status === 'in_progress');
   const completedHabitsToday = todayEntries.filter(entry => entry.completed).length;
+  const activeActivities = productiveActivities.filter(activity => activity.isActive);
 
   // Filter goals based on search and category
   const filteredDailyGoals = goalsLibrary.filter(goal => 
@@ -65,6 +71,13 @@ export default function PlanningScreen() {
         habit.title.toLowerCase().includes(searchQuery.toLowerCase())
       );
 
+  const filteredActivities = selectedCategory === 'all'
+    ? activeActivities.filter(activity => activity.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : activeActivities.filter(activity =>
+        activity.category === selectedCategory &&
+        activity.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+
   const handleEditDailyGoal = (goalId: string) => {
     router.push({
       pathname: '/modals/edit-goal',
@@ -76,6 +89,13 @@ export default function PlanningScreen() {
     router.push({
       pathname: '/modals/edit-long-term-goal',
       params: { goalId }
+    });
+  };
+
+  const handleEditActivity = (activityId: string) => {
+    router.push({
+      pathname: '/modals/edit-productive-activity',
+      params: { activityId }
     });
   };
 
@@ -100,9 +120,9 @@ export default function PlanningScreen() {
         </View>
         
         <View style={styles.statCard}>
-          <Dumbbell size={24} color={COLORS.warning[600]} />
-          <Text style={styles.statNumber}>{workouts.length}</Text>
-          <Text style={styles.statLabel}>Workouts</Text>
+          <Activity size={24} color={COLORS.warning[600]} />
+          <Text style={styles.statNumber}>{activeActivities.length}</Text>
+          <Text style={styles.statLabel}>Activities</Text>
         </View>
 
         <View style={styles.statCard}>
@@ -136,9 +156,18 @@ export default function PlanningScreen() {
           
           <TouchableOpacity 
             style={styles.quickAccessCard}
+            onPress={() => setCurrentView('activities')}
+          >
+            <Activity size={32} color={COLORS.warning[600]} />
+            <Text style={styles.quickAccessTitle}>Activities</Text>
+            <Text style={styles.quickAccessSubtitle}>{activeActivities.length} saved</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.quickAccessCard}
             onPress={() => setCurrentView('workouts')}
           >
-            <Dumbbell size={32} color={COLORS.warning[600]} />
+            <Dumbbell size={32} color={COLORS.secondary[600]} />
             <Text style={styles.quickAccessTitle}>Workouts</Text>
             <Text style={styles.quickAccessSubtitle}>{workouts.length} saved</Text>
           </TouchableOpacity>
@@ -175,6 +204,32 @@ export default function PlanningScreen() {
               </View>
             );
           })}
+        </View>
+
+        {/* Productive Activities Preview */}
+        <View style={styles.previewCard}>
+          <View style={styles.previewHeader}>
+            <Text style={styles.previewTitle}>Productive Activities</Text>
+            <TouchableOpacity onPress={() => setCurrentView('activities')}>
+              <Text style={styles.viewAllText}>View All</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {activeActivities.slice(0, 3).map((activity) => (
+            <View key={activity.id} style={styles.miniActivityItem}>
+              <Text style={styles.activityIcon}>{activity.icon}</Text>
+              <View style={styles.miniActivityContent}>
+                <Text style={styles.miniActivityText}>{activity.name}</Text>
+                <Text style={styles.miniActivityCategory}>{activity.category}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.addToTodayButton}
+                onPress={() => addActivityToToday(activity.id)}
+              >
+                <Plus size={14} color={COLORS.primary[600]} />
+              </TouchableOpacity>
+            </View>
+          ))}
         </View>
 
         {/* Goals Preview */}
@@ -222,6 +277,92 @@ export default function PlanningScreen() {
       </View>
     </ScrollView>
   );
+
+  const renderActivities = () => {
+    const ACTIVITY_CATEGORIES = [
+      { id: 'mind', name: 'Mind' },
+      { id: 'body', name: 'Body' },
+      { id: 'work', name: 'Work' },
+      { id: 'creative', name: 'Creative' },
+      { id: 'social', name: 'Social' },
+      { id: 'other', name: 'Other' },
+    ];
+
+    return (
+      <>
+        {/* Category Filter */}
+        <View style={styles.categoryFilter}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryScrollContent}
+          >
+            <TouchableOpacity
+              style={[
+                styles.categoryChip,
+                selectedCategory === 'all' && styles.selectedCategoryChip
+              ]}
+              onPress={() => setSelectedCategory('all')}
+            >
+              <Text style={[
+                styles.categoryChipText,
+                selectedCategory === 'all' && styles.selectedCategoryChipText
+              ]}>
+                All
+              </Text>
+            </TouchableOpacity>
+            
+            {ACTIVITY_CATEGORIES.map((category) => (
+              <TouchableOpacity
+                key={category.id}
+                style={[
+                  styles.categoryChip,
+                  selectedCategory === category.id && styles.selectedCategoryChip
+                ]}
+                onPress={() => setSelectedCategory(category.id)}
+              >
+                <Text style={[
+                  styles.categoryChipText,
+                  selectedCategory === category.id && styles.selectedCategoryChipText
+                ]}>
+                  {category.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        <ScrollView
+          style={styles.scrollContent}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          {filteredActivities.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Activity size={48} color={COLORS.neutral[400]} />
+              <Text style={styles.emptyStateText}>No productive activities yet</Text>
+              <Text style={styles.emptyStateSubtext}>
+                Create reusable activities to quickly add to your daily plan
+              </Text>
+            </View>
+          ) : (
+            filteredActivities.map((activity, index) => (
+              <Animated.View
+                key={activity.id}
+                entering={FadeInDown.delay(index * 100).springify()}
+              >
+                <ProductiveActivityCard
+                  activity={activity}
+                  onAddToToday={() => addActivityToToday(activity.id)}
+                  onEdit={() => handleEditActivity(activity.id)}
+                />
+              </Animated.View>
+            ))
+          )}
+        </ScrollView>
+      </>
+    );
+  };
 
   const renderHabits = () => {
     return (
@@ -570,6 +711,8 @@ export default function PlanningScreen() {
         return null; // Show choice modal for goals
       case 'workouts':
         return '/modals/add-workout';
+      case 'activities':
+        return '/modals/add-productive-activity';
       default:
         return null; // Show choice modal for overview
     }
@@ -596,6 +739,7 @@ export default function PlanningScreen() {
             { id: 'overview', label: 'Overview', icon: ListTodo },
             { id: 'habits', label: 'Habits', icon: Repeat },
             { id: 'goals', label: 'Goals', icon: Target },
+            { id: 'activities', label: 'Activities', icon: Activity },
             { id: 'workouts', label: 'Workouts', icon: Dumbbell },
           ].map(({ id, label, icon: Icon }) => (
             <TouchableOpacity
@@ -607,7 +751,7 @@ export default function PlanningScreen() {
               onPress={() => setCurrentView(id as PlanningView)}
             >
               <Icon 
-                size={16} 
+                size={14} 
                 color={currentView === id ? COLORS.white : COLORS.neutral[600]} 
               />
               <Text style={[
@@ -638,6 +782,7 @@ export default function PlanningScreen() {
       {currentView === 'overview' && renderOverview()}
       {currentView === 'habits' && renderHabits()}
       {currentView === 'goals' && renderGoals()}
+      {currentView === 'activities' && renderActivities()}
       {currentView === 'workouts' && renderWorkouts()}
       
       <FloatingActionButton
@@ -698,15 +843,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
     borderRadius: 6,
-    gap: 4,
+    gap: 2,
   },
   activeViewTab: {
     backgroundColor: COLORS.primary[600],
   },
   viewTabText: {
-    fontSize: 12,
+    fontSize: 10,
     fontFamily: 'Inter-Medium',
     color: COLORS.neutral[600],
   },
@@ -911,6 +1056,39 @@ const styles = StyleSheet.create({
   completedIcon: {
     fontSize: 16,
     color: COLORS.success[600],
+  },
+  miniActivityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.neutral[100],
+  },
+  activityIcon: {
+    fontSize: 16,
+    marginRight: 12,
+  },
+  miniActivityContent: {
+    flex: 1,
+  },
+  miniActivityText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[700],
+  },
+  miniActivityCategory: {
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[500],
+    textTransform: 'capitalize',
+  },
+  addToTodayButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: COLORS.primary[100],
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   miniGoalItem: {
     flexDirection: 'row',

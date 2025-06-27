@@ -115,6 +115,17 @@ export default function RootLayout() {
           }} 
         />
         <Stack.Screen 
+          name="modals/add-productive-activity" 
+          options={{ 
+            presentation: 'modal',
+            headerShown: true,
+            title: 'Add Productive Activity',
+            headerTitleStyle: {
+              fontFamily: 'Inter-SemiBold',
+            },
+          }} 
+        />
+        <Stack.Screen 
           name="modals/journal-entry" 
           options={{ 
             presentation: 'modal',
@@ -123,6 +134,13 @@ export default function RootLayout() {
             headerTitleStyle: {
               fontFamily: 'Inter-SemiBold',
             },
+          }} 
+        />
+        <Stack.Screen 
+          name="modals/morning-quiz" 
+          options={{ 
+            presentation: 'fullScreenModal',
+            headerShown: false,
           }} 
         />
         <Stack.Screen 

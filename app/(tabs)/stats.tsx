@@ -2,21 +2,35 @@ import { useContext, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, isWithinInterval } from 'date-fns';
-import { Calendar, ChartBar as BarChart3, TrendingUp } from 'lucide-react-native';
+import { Calendar, ChartBar as BarChart3, TrendingUp, Settings, Moon, Smartphone, Activity } from 'lucide-react-native';
 
 import { AppContext } from '@/contexts/AppContext';
 import { COLORS } from '@/constants/theme';
 import ProgressCircle from '@/components/ProgressCircle';
 import BarChart from '@/components/BarChart';
 import DailyPlannerTable from '@/components/DailyPlannerTable';
+import SleepChart from '@/components/SleepChart';
+import SocialMediaChart from '@/components/SocialMediaChart';
+import DashboardMetricCard from '@/components/DashboardMetricCard';
 import { getCompletionStatus } from '@/utils/helpers';
 
-type ViewMode = 'planner' | 'analytics';
+type ViewMode = 'dashboard' | 'planner' | 'analytics';
 
 export default function StatsScreen() {
   const insets = useSafeAreaInsets();
-  const { dailyPlans, getAverageProgress } = useContext(AppContext);
-  const [viewMode, setViewMode] = useState<ViewMode>('planner');
+  const { 
+    dailyPlans, 
+    getAverageProgress, 
+    sleepData, 
+    socialMediaData, 
+    journalEntries,
+    dashboardMetrics,
+    updateDashboardMetric,
+    toggleMetricPin,
+    getAnalytics
+  } = useContext(AppContext);
+  
+  const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
   const [currentDate, setCurrentDate] = useState(new Date());
   
   // Calculate overall average
@@ -67,6 +81,201 @@ export default function StatsScreen() {
   
   const { label: overallLabel, color: overallColor } = getCompletionStatus(overallAverage);
   const { label: weeklyLabel, color: weeklyColor } = getCompletionStatus(weekAverage);
+
+  // Get analytics data
+  const analytics = getAnalytics();
+
+  // Update dashboard metrics with real data
+  const updateMetricsWithRealData = () => {
+    const todayStr = format(today, 'yyyy-MM-dd');
+    const lastSleep = sleepData.find(sleep => sleep.date === todayStr);
+    const todaySocialMedia = socialMediaData.find(usage => usage.date === todayStr);
+    
+    // Update metrics
+    updateDashboardMetric('avg-mood', {
+      value: analytics.mood.averageMood.toFixed(1),
+      trend: 'stable',
+    });
+    
+    updateDashboardMetric('sleep-hours', {
+      value: lastSleep ? `${lastSleep.hoursSlept}h` : '0h',
+      subtitle: lastSleep ? `Quality: ${lastSleep.quality}/10` : 'No data',
+    });
+    
+    updateDashboardMetric('goals-completed', {
+      value: `${Math.round(weekAverage * 100)}%`,
+      trend: weekAverage > overallAverage ? 'up' : weekAverage < overallAverage ? 'down' : 'stable',
+      trendValue: `${Math.abs(Math.round((weekAverage - overallAverage) * 100))}% vs avg`,
+    });
+    
+    updateDashboardMetric('social-media', {
+      value: todaySocialMedia ? `${Math.round(todaySocialMedia.totalMinutes / 60)}h` : '0h',
+      subtitle: todaySocialMedia ? `${todaySocialMedia.totalMinutes}m total` : 'No usage logged',
+    });
+  };
+
+  const renderDashboard = () => {
+    const pinnedMetrics = dashboardMetrics.filter(metric => metric.isPinned);
+    const unpinnedMetrics = dashboardMetrics.filter(metric => !metric.isPinned);
+
+    return (
+      <ScrollView
+        style={styles.scrollContent}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Pinned Metrics */}
+        {pinnedMetrics.length > 0 && (
+          <View style={styles.metricsSection}>
+            <Text style={styles.sectionTitle}>Your Dashboard</Text>
+            <View style={styles.metricsGrid}>
+              {pinnedMetrics.map(metric => (
+                <DashboardMetricCard
+                  key={metric.id}
+                  metric={metric}
+                  onTogglePin={() => toggleMetricPin(metric.id)}
+                  showPinButton
+                />
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Quick Overview */}
+        <View style={styles.summaryContainer}>
+          <View style={styles.progressCard}>
+            <Text style={styles.progressTitle}>Overall Progress</Text>
+            <ProgressCircle
+              percentage={overallAverage * 100}
+              color={overallColor}
+              size={80}
+            />
+            <Text style={[styles.progressLabel, { color: overallColor }]}>
+              {overallLabel}
+            </Text>
+            <Text style={styles.progressPercentage}>
+              {Math.round(overallAverage * 100)}%
+            </Text>
+          </View>
+          
+          <View style={styles.progressCard}>
+            <Text style={styles.progressTitle}>This Week</Text>
+            <ProgressCircle
+              percentage={weekAverage * 100}
+              color={weeklyColor}
+              size={80}
+            />
+            <Text style={[styles.progressLabel, { color: weeklyColor }]}>
+              {weeklyLabel}
+            </Text>
+            <Text style={styles.progressPercentage}>
+              {Math.round(weekAverage * 100)}%
+            </Text>
+          </View>
+        </View>
+
+        {/* Sleep Chart */}
+        {sleepData.length > 0 && (
+          <View style={styles.chartSection}>
+            <View style={styles.chartHeader}>
+              <Moon size={20} color={COLORS.accent[600]} />
+              <Text style={styles.sectionTitle}>Sleep Tracking</Text>
+            </View>
+            <SleepChart sleepData={sleepData} days={7} />
+          </View>
+        )}
+
+        {/* Social Media Chart */}
+        {socialMediaData.length > 0 && (
+          <View style={styles.chartSection}>
+            <View style={styles.chartHeader}>
+              <Smartphone size={20} color={COLORS.warning[600]} />
+              <Text style={styles.sectionTitle}>Screen Time</Text>
+            </View>
+            <SocialMediaChart socialMediaData={socialMediaData} days={7} />
+          </View>
+        )}
+
+        {/* Weekly Overview */}
+        <View style={styles.chartSection}>
+          <View style={styles.chartHeader}>
+            <Activity size={20} color={COLORS.primary[600]} />
+            <Text style={styles.sectionTitle}>Weekly Goals</Text>
+          </View>
+          <Text style={styles.sectionSubtitle}>
+            {format(weekStart, 'MMM d')} - {format(weekEnd, 'MMM d, yyyy')}
+          </Text>
+          
+          <View style={styles.chartContainer}>
+            <BarChart 
+              data={weeklyData}
+              valueKey="progress"
+              labelKey="day"
+            />
+          </View>
+        </View>
+
+        {/* Additional Metrics */}
+        {unpinnedMetrics.length > 0 && (
+          <View style={styles.metricsSection}>
+            <Text style={styles.sectionTitle}>More Metrics</Text>
+            <View style={styles.metricsGrid}>
+              {unpinnedMetrics.map(metric => (
+                <DashboardMetricCard
+                  key={metric.id}
+                  metric={metric}
+                  onTogglePin={() => toggleMetricPin(metric.id)}
+                  showPinButton
+                />
+              ))}
+            </View>
+          </View>
+        )}
+        
+        {/* Monthly Trend */}
+        <View style={styles.chartSection}>
+          <Text style={styles.sectionTitle}>Monthly Trend</Text>
+          <Text style={styles.sectionSubtitle}>Last 4 weeks</Text>
+          
+          <View style={styles.chartContainer}>
+            <BarChart 
+              data={last4Weeks}
+              valueKey="progress"
+              labelKey="week"
+            />
+          </View>
+        </View>
+        
+        {/* Stats Summary */}
+        <View style={styles.statsSection}>
+          <Text style={styles.sectionTitle}>Summary</Text>
+          
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>
+                {dailyPlans.length}
+              </Text>
+              <Text style={styles.statLabel}>Days Tracked</Text>
+            </View>
+            
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>
+                {dailyPlans.reduce((sum, plan) => sum + plan.goalsCompleted, 0)}
+              </Text>
+              <Text style={styles.statLabel}>Goals Completed</Text>
+            </View>
+            
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>
+                {journalEntries.length}
+              </Text>
+              <Text style={styles.statLabel}>Journal Entries</Text>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+    );
+  };
 
   const renderAnalytics = () => (
     <ScrollView
@@ -173,6 +382,22 @@ export default function StatsScreen() {
           <TouchableOpacity
             style={[
               styles.toggleButton,
+              viewMode === 'dashboard' && styles.activeToggle
+            ]}
+            onPress={() => setViewMode('dashboard')}
+          >
+            <TrendingUp size={16} color={viewMode === 'dashboard' ? COLORS.white : COLORS.neutral[600]} />
+            <Text style={[
+              styles.toggleText,
+              viewMode === 'dashboard' && styles.activeToggleText
+            ]}>
+              Dashboard
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.toggleButton,
               viewMode === 'planner' && styles.activeToggle
             ]}
             onPress={() => setViewMode('planner')}
@@ -193,7 +418,7 @@ export default function StatsScreen() {
             ]}
             onPress={() => setViewMode('analytics')}
           >
-            <TrendingUp size={16} color={viewMode === 'analytics' ? COLORS.white : COLORS.neutral[600]} />
+            <BarChart3 size={16} color={viewMode === 'analytics' ? COLORS.white : COLORS.neutral[600]} />
             <Text style={[
               styles.toggleText,
               viewMode === 'analytics' && styles.activeToggleText
@@ -204,14 +429,14 @@ export default function StatsScreen() {
         </View>
       </View>
       
-      {viewMode === 'planner' ? (
+      {viewMode === 'dashboard' && renderDashboard()}
+      {viewMode === 'planner' && (
         <DailyPlannerTable 
           currentDate={currentDate}
           onDateChange={setCurrentDate}
         />
-      ) : (
-        renderAnalytics()
       )}
+      {viewMode === 'analytics' && renderAnalytics()}
     </View>
   );
 }
@@ -252,15 +477,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     borderRadius: 6,
-    gap: 6,
+    gap: 4,
   },
   activeToggle: {
     backgroundColor: COLORS.primary[600],
   },
   toggleText: {
-    fontSize: 14,
+    fontSize: 12,
     fontFamily: 'Inter-Medium',
     color: COLORS.neutral[600],
   },
@@ -273,6 +498,14 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingBottom: 40,
+  },
+  metricsSection: {
+    marginTop: 20,
+  },
+  metricsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
   },
   summaryContainer: {
     flexDirection: 'row',
@@ -310,10 +543,16 @@ const styles = StyleSheet.create({
   chartSection: {
     marginTop: 24,
   },
+  chartHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   sectionTitle: {
     fontSize: 18,
     fontFamily: 'Inter-SemiBold',
     color: COLORS.neutral[800],
+    marginLeft: 8,
   },
   sectionSubtitle: {
     fontSize: 12,

@@ -155,6 +155,15 @@ export interface JournalEntry {
   tomorrowFocus?: string;
   energy: number; // 1-5 scale
   stress: number; // 1-5 scale
+  
+  // Morning quiz specific fields
+  sleepHours?: number;
+  sleepQuality?: number; // 1-10 scale
+  morningFeeling?: string;
+  mainFocus?: string;
+  dailyGoals?: string[]; // Goals to accomplish today
+  morningGratitude?: string;
+  
   createdAt: string;
   updatedAt: string;
 }
@@ -216,6 +225,66 @@ export interface DailyChallenge {
   completedAt?: string;
 }
 
+// New types for enhanced features
+
+export interface SleepData {
+  id: string;
+  date: string; // ISO format YYYY-MM-DD
+  hoursSlept: number;
+  quality: number; // 1-10 scale
+  bedTime?: string; // HH:MM format
+  wakeTime?: string; // HH:MM format
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SocialMediaUsage {
+  id: string;
+  date: string; // ISO format YYYY-MM-DD
+  totalMinutes: number;
+  apps: SocialMediaApp[];
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SocialMediaApp {
+  name: string;
+  minutes: number;
+  category: 'social' | 'entertainment' | 'news' | 'other';
+}
+
+export interface ProductiveActivity {
+  id: string;
+  name: string;
+  description?: string;
+  category: 'mind' | 'body' | 'work' | 'creative' | 'social' | 'other';
+  color: string;
+  icon: string;
+  estimatedDuration?: number; // in minutes
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ActivityEntry {
+  id: string;
+  activityId: string;
+  date: string; // ISO format YYYY-MM-DD
+  duration: number; // actual minutes spent
+  notes?: string;
+  rating?: number; // 1-5 how productive/enjoyable it was
+  scheduledTime?: {
+    start: string;
+    end: string;
+  };
+  completed: boolean;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Analytics {
   habits: {
     totalCompleted: number;
@@ -235,10 +304,36 @@ export interface Analytics {
     energyTrend: { date: string; energy: number }[];
     stressTrend: { date: string; stress: number }[];
   };
+  sleep: {
+    averageHours: number;
+    averageQuality: number;
+    sleepTrend: { date: string; hours: number; quality: number }[];
+    weeklyPattern: { day: string; averageHours: number }[];
+  };
+  socialMedia: {
+    dailyAverage: number;
+    weeklyTrend: { date: string; minutes: number }[];
+    appBreakdown: { app: string; minutes: number }[];
+    streakDaysUnderAverage: number;
+  };
   productivity: {
     tasksCompleted: number;
     averageDailyProgress: number;
     mostProductiveDays: string[];
     weeklyTrends: { week: string; progress: number }[];
+    activitiesCompleted: { activity: string; count: number; totalMinutes: number }[];
   };
+}
+
+export interface DashboardMetric {
+  id: string;
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  trend?: 'up' | 'down' | 'stable';
+  trendValue?: string;
+  color: string;
+  icon: string;
+  isPinned: boolean;
+  category: 'mood' | 'sleep' | 'goals' | 'habits' | 'social' | 'productivity';
 }
