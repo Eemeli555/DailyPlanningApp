@@ -249,43 +249,7 @@ export default function TodayScreen() {
           </Animated.View>
         )}
 
-        {/* Today's Habits */}
-        {activeHabits.length > 0 && (
-          <View style={styles.habitsSection}>
-            <View style={styles.sectionHeader}>
-              <Repeat size={20} color={COLORS.accent[600]} />
-              <Text style={styles.sectionTitle}>Today's Habits</Text>
-              <Text style={styles.habitProgress}>
-                {completedHabits}/{activeHabits.length}
-              </Text>
-            </View>
-            
-            <View style={styles.habitsContainer}>
-              {activeHabits.map((habit, index) => {
-                const todayEntry = todayHabitEntries.find(entry => entry.habitId === habit.id);
-                const streak = calculateHabitStreak(habitEntries, habit.id);
-                
-                return (
-                  <Animated.View
-                    key={habit.id}
-                    entering={FadeInUp.delay(index * 50).springify()}
-                  >
-                    <HabitCard
-                      habit={habit}
-                      entry={todayEntry}
-                      onToggle={() => handleToggleHabit(habit.id)}
-                      onEdit={() => router.push({
-                        pathname: '/modals/edit-habit',
-                        params: { habitId: habit.id }
-                      })}
-                      streak={streak}
-                    />
-                  </Animated.View>
-                );
-              })}
-            </View>
-          </View>
-        )}
+       
         
         {/* Compact Daily Schedule Overview */}
         <DailyScheduleOverview 
@@ -329,6 +293,44 @@ export default function TodayScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Today's Habits */}
+        {activeHabits.length > 0 && (
+          <View style={styles.habitsSection}>
+            <View style={styles.sectionHeader}>
+              <Repeat size={20} color={COLORS.accent[600]} />
+              <Text style={styles.sectionTitle}>Today's Habits</Text>
+              <Text style={styles.habitProgress}>
+                {completedHabits}/{activeHabits.length}
+              </Text>
+            </View>
+            
+            <View style={styles.habitsContainer}>
+              {activeHabits.map((habit, index) => {
+                const todayEntry = todayHabitEntries.find(entry => entry.habitId === habit.id);
+                const streak = calculateHabitStreak(habitEntries, habit.id);
+                
+                return (
+                  <Animated.View
+                    key={habit.id}
+                    entering={FadeInUp.delay(index * 50).springify()}
+                  >
+                    <HabitCard
+                      habit={habit}
+                      entry={todayEntry}
+                      onToggle={() => handleToggleHabit(habit.id)}
+                      onEdit={() => router.push({
+                        pathname: '/modals/edit-habit',
+                        params: { habitId: habit.id }
+                      })}
+                      streak={streak}
+                    />
+                  </Animated.View>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {/* Unscheduled Goals - Compact List */}
         {regularGoals.filter(goal => !goal.scheduledTime).length > 0 && (
