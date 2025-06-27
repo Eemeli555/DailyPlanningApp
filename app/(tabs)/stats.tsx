@@ -398,22 +398,6 @@ export default function StatsScreen() {
           <TouchableOpacity
             style={[
               styles.toggleButton,
-              viewMode === 'planner' && styles.activeToggle
-            ]}
-            onPress={() => setViewMode('planner')}
-          >
-            <Calendar size={16} color={viewMode === 'planner' ? COLORS.white : COLORS.neutral[600]} />
-            <Text style={[
-              styles.toggleText,
-              viewMode === 'planner' && styles.activeToggleText
-            ]}>
-              Daily Planner
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[
-              styles.toggleButton,
               viewMode === 'analytics' && styles.activeToggle
             ]}
             onPress={() => setViewMode('analytics')}
