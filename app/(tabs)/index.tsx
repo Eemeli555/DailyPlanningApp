@@ -2,7 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Modal, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
-import { Plus, Calendar, CircleCheck as CheckCircle2, Clock, Star, Zap, Trophy, Target, Repeat } from 'lucide-react-native';
+import { Plus, Calendar, CircleCheck as CheckCircle2, Clock, Star, Zap, Trophy, Target, Repeat, Smartphone } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
 
@@ -19,6 +19,9 @@ import CreateChoiceModal from '@/components/CreateChoiceModal';
 import HabitCard from '@/components/HabitCard';
 import { getCompletionStatus } from '@/utils/helpers';
 import { calculateHabitStreak } from '@/utils/gamification';
+import DigitalWellnessCard from '@/components/DigitalWellnessCard';
+import IntentPromptModal from '@/components/IntentPromptModal';
+import { formatUsageTime } from '@/utils/socialMediaTracking';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const isSmallScreen = screenWidth < 375;
@@ -42,13 +45,21 @@ export default function TodayScreen() {
     dailyChallenge,
     completeDailyChallenge,
     achievements,
-    toggleHabitCompletion
+    toggleHabitCompletion,
+    trackedApps,
+    appUsageSessions,
+    intentPromptResponses,
+    addIntentPromptResponse,
+    socialMediaReflections,
+    getAnalytics
   } = useContext(AppContext);
   
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [selectedGoalForScheduling, setSelectedGoalForScheduling] = useState<Goal | null>(null);
   const [showAchievementModal, setShowAchievementModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showIntentPrompt, setShowIntentPrompt] = useState(false);
+  const [selectedApp, setSelectedApp] = useState(null);
   
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
@@ -67,6 +78,54 @@ export default function TodayScreen() {
 
   // Check for new achievements
   const recentAchievements = achievements.slice(-3);
+
+  // Calculate social media usage data
+  const todayUsageSessions = appUsageSessions.filter(session => session.date === todayStr);
+  
+  const totalUsageMinutes = todayUsageSessions.reduce(
+    (total, session) => total + session.duration,
+    0
+  );
+  
+  // Calculate weekly average
+  const weeklyUsageSessions = appUsageSessions.filter(session => {
+    const sessionDate = new Date(session.date);
+    const daysDiff = Math.floor((today.getTime() - sessionDate.getTime()) / (1000 * 60 * 60 * 24));
+    return daysDiff < 7;
+  });
+  
+  const weeklyAverageMinutes = weeklyUsageSessions.length > 0
+    ? weeklyUsageSessions.reduce((total, session) => total + session.duration, 0) / 7
+    : 0;
+  
+  // Calculate app-specific usage
+  const appUsage = trackedApps.map(app => {
+    const appSessions = todayUsageSessions.filter(session => session.appId === app.id);
+    const minutes = appSessions.reduce((total, session) => total + session.duration, 0);
+    
+    return {
+      app,
+      minutes,
+    };
+  }).filter(item => item.minutes > 0)
+    .sort((a, b) => b.minutes - a.minutes);
+  
+  // Top app
+  const topApp = appUsage[0] ? {
+    name: appUsage[0].app.displayName,
+    usage: appUsage[0].minutes,
+    color: appUsage[0].app.color,
+  } : null;
+  
+  // Calculate intentfulness score
+  const recentIntentPrompts = intentPromptResponses.slice(-20);
+  const intentfulResponses = recentIntentPrompts.filter(
+    response => response.reason !== 'skipped' && response.reason !== 'bored'
+  );
+  
+  const intentfulnessScore = recentIntentPrompts.length > 0
+    ? Math.round((intentfulResponses.length / recentIntentPrompts.length) * 100)
+    : 0;
 
   const handleScheduleGoal = (goal: Goal) => {
     setSelectedGoalForScheduling(goal);
@@ -106,6 +165,21 @@ export default function TodayScreen() {
       pathname: '/modals/edit-goal',
       params: { goalId: goal.id }
     });
+  };
+
+  const handleIntentResponse = (reason: string, proceeded: boolean) => {
+    if (selectedApp) {
+      addIntentPromptResponse({
+        appId: selectedApp.id,
+        packageName: selectedApp.packageName,
+        date: format(new Date(), 'yyyy-MM-dd'),
+        timestamp: new Date().toISOString(),
+        reason: reason as any,
+        proceeded,
+      });
+    }
+    setShowIntentPrompt(false);
+    setSelectedApp(null);
   };
 
   // Get current time for "happening now" indicator
@@ -196,6 +270,21 @@ export default function TodayScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: 100 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Digital Wellness Card */}
+        {totalUsageMinutes > 0 && (
+          <Animated.View 
+            entering={FadeInUp.delay(50).springify()}
+          >
+            <DigitalWellnessCard
+              totalUsage={totalUsageMinutes}
+              weeklyAverage={weeklyAverageMinutes}
+              topApp={topApp}
+              intentfulnessScore={intentfulnessScore}
+              onPress={() => router.push('/modals/social-media-settings')}
+            />
+          </Animated.View>
+        )}
+
         {/* Daily Challenge */}
         {dailyChallenge && !dailyChallenge.completed && (
           <Animated.View 
@@ -299,6 +388,16 @@ export default function TodayScreen() {
               <CheckCircle2 size={isSmallScreen ? 18 : 20} color={COLORS.success[600]} />
               <Text style={[styles.quickActionText, isSmallScreen && styles.quickActionTextSmall]}>
                 Journal
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.quickActionCard, isSmallScreen && styles.quickActionCardSmall]}
+              onPress={() => router.push('/modals/social-media-settings')}
+            >
+              <Smartphone size={isSmallScreen ? 18 : 20} color={COLORS.secondary[600]} />
+              <Text style={[styles.quickActionText, isSmallScreen && styles.quickActionTextSmall]}>
+                Digital Wellness
               </Text>
             </TouchableOpacity>
           </View>
@@ -432,6 +531,17 @@ export default function TodayScreen() {
           </View>
         </View>
       </Modal>
+
+      <IntentPromptModal
+        visible={showIntentPrompt}
+        app={selectedApp}
+        onResponse={handleIntentResponse}
+        onSkip={() => {
+          if (selectedApp) {
+            handleIntentResponse('skipped', true);
+          }
+        }}
+      />
     </View>
   );
 }

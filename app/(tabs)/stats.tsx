@@ -1,8 +1,8 @@
-import { useContext, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { useContext, useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, isWithinInterval } from 'date-fns';
-import { Calendar, ChartBar as BarChart3, TrendingUp, Settings, Moon, Smartphone, Activity } from 'lucide-react-native';
+import { Calendar, ChartBar as BarChart3, TrendingUp, Settings, Moon, Smartphone, Activity, Target, Bell } from 'lucide-react-native';
 
 import { AppContext } from '@/contexts/AppContext';
 import { COLORS } from '@/constants/theme';
@@ -13,11 +13,14 @@ import SleepChart from '@/components/SleepChart';
 import SocialMediaChart from '@/components/SocialMediaChart';
 import DashboardMetricCard from '@/components/DashboardMetricCard';
 import { getCompletionStatus } from '@/utils/helpers';
+import IntentPromptModal from '@/components/IntentPromptModal';
+import { TrackedApp } from '@/types';
 
 type ViewMode = 'dashboard' | 'planner' | 'analytics';
 
 export default function StatsScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { 
     dailyPlans, 
     getAverageProgress, 
@@ -27,11 +30,18 @@ export default function StatsScreen() {
     dashboardMetrics,
     updateDashboardMetric,
     toggleMetricPin,
-    getAnalytics
+    getAnalytics,
+    trackedApps,
+    appUsageSessions,
+    intentPromptResponses,
+    addIntentPromptResponse,
+    socialMediaReflections
   } = useContext(AppContext);
   
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [showIntentPrompt, setShowIntentPrompt] = useState(false);
+  const [selectedApp, setSelectedApp] = useState<TrackedApp | null>(null);
   
   // Calculate overall average
   const overallAverage = getAverageProgress();
@@ -85,8 +95,74 @@ export default function StatsScreen() {
   // Get analytics data
   const analytics = getAnalytics();
 
+  // Calculate social media usage data
+  const todayStr = format(today, 'yyyy-MM-dd');
+  const todayUsageSessions = appUsageSessions.filter(session => session.date === todayStr);
+  
+  const totalUsageMinutes = todayUsageSessions.reduce(
+    (total, session) => total + session.duration,
+    0
+  );
+  
+  // Calculate weekly average
+  const weeklyUsageSessions = appUsageSessions.filter(session => {
+    const sessionDate = new Date(session.date);
+    return isWithinInterval(sessionDate, { start: weekStart, end: weekEnd });
+  });
+  
+  const weeklyUsageByDay = weekDays.map(day => {
+    const dayStr = format(day, 'yyyy-MM-dd');
+    const daySessions = appUsageSessions.filter(session => session.date === dayStr);
+    return {
+      day: format(day, 'EEE'),
+      minutes: daySessions.reduce((total, session) => total + session.duration, 0),
+    };
+  });
+  
+  const weeklyAverageMinutes = weeklyUsageByDay.reduce(
+    (sum, day) => sum + day.minutes, 
+    0
+  ) / weeklyUsageByDay.length;
+  
+  // Calculate app-specific usage
+  const appUsage = trackedApps.map(app => {
+    const appSessions = todayUsageSessions.filter(session => session.appId === app.id);
+    const minutes = appSessions.reduce((total, session) => total + session.duration, 0);
+    
+    // Calculate weekly average for this app
+    const weeklyAppSessions = weeklyUsageSessions.filter(session => session.appId === app.id);
+    const weeklyAppMinutes = weeklyAppSessions.reduce(
+      (total, session) => total + session.duration, 
+      0
+    ) / 7;
+    
+    return {
+      app,
+      minutes,
+      weeklyAverage: weeklyAppMinutes,
+    };
+  }).filter(item => item.minutes > 0 || item.weeklyAverage > 0)
+    .sort((a, b) => b.minutes - a.minutes);
+  
+  // Calculate intentfulness score
+  const recentIntentPrompts = intentPromptResponses.slice(-20);
+  const intentfulResponses = recentIntentPrompts.filter(
+    response => response.reason !== 'skipped' && response.reason !== 'bored'
+  );
+  
+  const intentfulnessScore = recentIntentPrompts.length > 0
+    ? Math.round((intentfulResponses.length / recentIntentPrompts.length) * 100)
+    : 0;
+  
+  // Top app
+  const topApp = appUsage[0] ? {
+    name: appUsage[0].app.displayName,
+    usage: appUsage[0].minutes,
+    color: appUsage[0].app.color,
+  } : null;
+
   // Update dashboard metrics with real data
-  const updateMetricsWithRealData = () => {
+  useEffect(() => {
     const todayStr = format(today, 'yyyy-MM-dd');
     const lastSleep = sleepData.find(sleep => sleep.date === todayStr);
     const todaySocialMedia = socialMediaData.find(usage => usage.date === todayStr);
@@ -109,9 +185,41 @@ export default function StatsScreen() {
     });
     
     updateDashboardMetric('social-media', {
-      value: todaySocialMedia ? `${Math.round(todaySocialMedia.totalMinutes / 60)}h` : '0h',
-      subtitle: todaySocialMedia ? `${todaySocialMedia.totalMinutes}m total` : 'No usage logged',
+      value: `${Math.round(totalUsageMinutes / 60)}h ${totalUsageMinutes % 60}m`,
+      subtitle: `${Math.round(weeklyAverageMinutes / 60)}h ${Math.round(weeklyAverageMinutes) % 60}m avg`,
+      trend: totalUsageMinutes > weeklyAverageMinutes ? 'up' : totalUsageMinutes < weeklyAverageMinutes ? 'down' : 'stable',
+      trendValue: weeklyAverageMinutes > 0 
+        ? `${Math.abs(Math.round(((totalUsageMinutes - weeklyAverageMinutes) / weeklyAverageMinutes) * 100))}% vs avg`
+        : undefined,
     });
+    
+    updateDashboardMetric('mindful-usage', {
+      value: `${intentfulnessScore}%`,
+      subtitle: 'Intentional usage',
+    });
+  }, [
+    analytics, sleepData, socialMediaData, weekAverage, overallAverage, 
+    totalUsageMinutes, weeklyAverageMinutes, intentfulnessScore
+  ]);
+
+  const handleAppPress = (app: TrackedApp) => {
+    setSelectedApp(app);
+    setShowIntentPrompt(true);
+  };
+
+  const handleIntentResponse = (reason: string, proceeded: boolean) => {
+    if (selectedApp) {
+      addIntentPromptResponse({
+        appId: selectedApp.id,
+        packageName: selectedApp.packageName,
+        date: format(new Date(), 'yyyy-MM-dd'),
+        timestamp: new Date().toISOString(),
+        reason: reason as any,
+        proceeded,
+      });
+    }
+    setShowIntentPrompt(false);
+    setSelectedApp(null);
   };
 
   const renderDashboard = () => {
@@ -140,6 +248,88 @@ export default function StatsScreen() {
             </View>
           </View>
         )}
+
+        {/* Social Media Usage */}
+        <View style={styles.chartSection}>
+          <View style={styles.chartHeader}>
+            <Smartphone size={20} color={COLORS.primary[600]} />
+            <Text style={styles.sectionTitle}>Social Media Usage</Text>
+            <TouchableOpacity 
+              style={styles.settingsButton}
+              onPress={() => router.push('/modals/social-media-settings')}
+            >
+              <Settings size={16} color={COLORS.neutral[600]} />
+            </TouchableOpacity>
+          </View>
+          
+          <SocialMediaChart 
+            apps={trackedApps}
+            usageSessions={appUsageSessions}
+            days={7}
+            onAppPress={handleAppPress}
+          />
+          
+          {/* Social Media Insights */}
+          {socialMediaReflections.length > 0 && (
+            <View style={styles.insightsContainer}>
+              <Text style={styles.insightsTitle}>Recent Insights</Text>
+              
+              <View style={styles.insightCard}>
+                <Text style={styles.insightLabel}>Meaningfulness</Text>
+                <View style={styles.insightValueContainer}>
+                  <Text style={styles.insightValue}>
+                    {Math.round(socialMediaReflections.reduce(
+                      (sum, reflection) => sum + reflection.meaningfulnessRating, 
+                      0
+                    ) / socialMediaReflections.length * 10) / 10}/5
+                  </Text>
+                  <Text style={styles.insightDescription}>
+                    Average rating of how meaningful your social media time feels
+                  </Text>
+                </View>
+              </View>
+              
+              <View style={styles.insightCard}>
+                <Text style={styles.insightLabel}>Top Alternative</Text>
+                <View style={styles.insightValueContainer}>
+                  <Text style={styles.insightValue}>
+                    {(() => {
+                      // Find most common alternative activity
+                      const allAlternatives = socialMediaReflections
+                        .flatMap(r => r.alternativeActivities || [])
+                        .filter(Boolean);
+                      
+                      if (allAlternatives.length === 0) return 'None specified';
+                      
+                      const counts: Record<string, number> = {};
+                      allAlternatives.forEach(alt => {
+                        counts[alt] = (counts[alt] || 0) + 1;
+                      });
+                      
+                      const topActivity = Object.entries(counts)
+                        .sort((a, b) => b[1] - a[1])[0][0];
+                      
+                      return topActivity;
+                    })()}
+                  </Text>
+                  <Text style={styles.insightDescription}>
+                    Activity you'd most like to do instead
+                  </Text>
+                </View>
+              </View>
+              
+              <TouchableOpacity 
+                style={styles.reflectionButton}
+                onPress={() => router.push({
+                  pathname: '/modals/social-media-reflection',
+                  params: { date: todayStr, totalUsage: totalUsageMinutes.toString() }
+                })}
+              >
+                <Text style={styles.reflectionButtonText}>Add Today's Reflection</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
 
         {/* Quick Overview */}
         <View style={styles.summaryContainer}>
@@ -182,17 +372,6 @@ export default function StatsScreen() {
               <Text style={styles.sectionTitle}>Sleep Tracking</Text>
             </View>
             <SleepChart sleepData={sleepData} days={7} />
-          </View>
-        )}
-
-        {/* Social Media Chart */}
-        {socialMediaData.length > 0 && (
-          <View style={styles.chartSection}>
-            <View style={styles.chartHeader}>
-              <Smartphone size={20} color={COLORS.warning[600]} />
-              <Text style={styles.sectionTitle}>Screen Time</Text>
-            </View>
-            <SocialMediaChart socialMediaData={socialMediaData} days={7} />
           </View>
         )}
 
@@ -421,6 +600,17 @@ export default function StatsScreen() {
         />
       )}
       {viewMode === 'analytics' && renderAnalytics()}
+
+      <IntentPromptModal
+        visible={showIntentPrompt}
+        app={selectedApp}
+        onResponse={handleIntentResponse}
+        onSkip={() => {
+          if (selectedApp) {
+            handleIntentResponse('skipped', true);
+          }
+        }}
+      />
     </View>
   );
 }
@@ -537,6 +727,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-SemiBold',
     color: COLORS.neutral[800],
     marginLeft: 8,
+    flex: 1,
+  },
+  settingsButton: {
+    padding: 8,
+    backgroundColor: COLORS.neutral[100],
+    borderRadius: 8,
   },
   sectionSubtitle: {
     fontSize: 12,
@@ -582,5 +778,60 @@ const styles = StyleSheet.create({
     color: COLORS.neutral[600],
     marginTop: 4,
     textAlign: 'center',
+  },
+  insightsContainer: {
+    marginTop: 16,
+    backgroundColor: COLORS.neutral[50],
+    borderRadius: 12,
+    padding: 16,
+  },
+  insightsTitle: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.neutral[800],
+    marginBottom: 12,
+  },
+  insightCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.primary[500],
+  },
+  insightLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.neutral[600],
+    marginBottom: 4,
+  },
+  insightValueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  insightValue: {
+    fontSize: 16,
+    fontFamily: 'Inter-Bold',
+    color: COLORS.neutral[800],
+  },
+  insightDescription: {
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[500],
+    flex: 1,
+    textAlign: 'right',
+  },
+  reflectionButton: {
+    backgroundColor: COLORS.primary[600],
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  reflectionButtonText: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.white,
   },
 });

@@ -164,6 +164,11 @@ export interface JournalEntry {
   dailyGoals?: string[]; // Goals to accomplish today
   morningGratitude?: string;
   
+  // Social media reflection fields
+  socialMediaMeaningful?: number; // 1-5 scale
+  socialMediaDistraction?: boolean;
+  socialMediaAlternatives?: string;
+  
   createdAt: string;
   updatedAt: string;
 }
@@ -188,6 +193,8 @@ export interface UserProfile {
     notifications: boolean;
     dailyReminder?: string; // HH:MM format
     weekStartsOn: 0 | 1; // 0 = Sunday, 1 = Monday
+    socialMediaTracking: boolean;
+    intentPrompts: boolean;
   };
   createdAt: string;
   updatedAt: string;
@@ -255,6 +262,83 @@ export interface SocialMediaApp {
   category: 'social' | 'entertainment' | 'news' | 'other';
 }
 
+// Enhanced Social Media Wellness Types
+
+export interface TrackedApp {
+  id: string;
+  packageName: string; // e.g., com.instagram.android
+  displayName: string; // e.g., Instagram
+  category: 'social' | 'entertainment' | 'news' | 'productivity' | 'other';
+  icon?: string; // base64 or URL
+  isTracked: boolean;
+  dailyLimit?: number; // minutes
+  intentPromptEnabled: boolean;
+  color: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AppUsageSession {
+  id: string;
+  appId: string;
+  packageName: string;
+  date: string; // ISO format YYYY-MM-DD
+  startTime: string; // ISO timestamp
+  endTime?: string; // ISO timestamp
+  duration: number; // minutes
+  launchCount: number;
+  createdAt: string;
+}
+
+export interface IntentPromptResponse {
+  id: string;
+  appId: string;
+  packageName: string;
+  date: string; // ISO format YYYY-MM-DD
+  timestamp: string; // ISO timestamp
+  reason: 'bored' | 'habit' | 'reward' | 'work' | 'social' | 'other' | 'skipped';
+  proceeded: boolean; // whether user continued to app
+  createdAt: string;
+}
+
+export interface SocialMediaReflection {
+  id: string;
+  date: string; // ISO format YYYY-MM-DD
+  totalUsageMinutes: number;
+  meaningfulnessRating: number; // 1-5 scale
+  wasDistraction: boolean;
+  distractionFromWhat?: string;
+  alternativeActivities?: string[];
+  tomorrowGoals?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UsageAlert {
+  id: string;
+  appId: string;
+  type: 'daily_limit' | 'usage_spike' | 'awareness_reminder';
+  threshold: number; // minutes or percentage
+  isActive: boolean;
+  lastTriggered?: string; // ISO timestamp
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DigitalWellnessGoal {
+  id: string;
+  type: 'reduce_usage' | 'mindful_usage' | 'app_free_time' | 'focus_block';
+  title: string;
+  description?: string;
+  targetValue: number; // minutes or count
+  currentValue: number;
+  targetDate: string; // ISO date
+  appIds?: string[]; // specific apps this goal applies to
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ProductiveActivity {
   id: string;
   name: string;
@@ -315,6 +399,8 @@ export interface Analytics {
     weeklyTrend: { date: string; minutes: number }[];
     appBreakdown: { app: string; minutes: number }[];
     streakDaysUnderAverage: number;
+    intentfulnessScore: number; // based on intent prompts
+    mostCommonReasons: { reason: string; count: number }[];
   };
   productivity: {
     tasksCompleted: number;

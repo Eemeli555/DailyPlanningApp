@@ -2,13 +2,14 @@ import React, { useState, useContext, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Modal } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { format } from 'date-fns';
-import { ChevronLeft, ChevronRight, Moon, Star, Heart, CircleCheck as CheckCircle, X } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Moon, Star, Heart, CircleCheck as CheckCircle, X, Smartphone } from 'lucide-react-native';
 import Animated, { FadeInRight, FadeOutLeft, FadeInDown } from 'react-native-reanimated';
 import Slider from '@react-native-community/slider';
 
 import { AppContext } from '@/contexts/AppContext';
 import { COLORS } from '@/constants/theme';
 import Button from '@/components/Button';
+import { formatUsageTime } from '@/utils/socialMediaTracking';
 
 interface QuizResponse {
   mood: number;
@@ -20,9 +21,12 @@ interface QuizResponse {
   thoughts?: string;
   tomorrowGoal?: string;
   tomorrowPriority?: string;
+  socialMediaMeaningful?: number;
+  socialMediaDistraction?: boolean;
+  socialMediaAlternatives?: string[];
 }
 
-const TOTAL_STEPS = 8;
+const TOTAL_STEPS = 10;
 
 export default function EveningQuizScreen() {
   const router = useRouter();
@@ -35,7 +39,11 @@ export default function EveningQuizScreen() {
     updateJournalEntry,
     journalEntries,
     addGoal,
-    awardXP
+    awardXP,
+    appUsageSessions,
+    trackedApps,
+    addSocialMediaReflection,
+    addDigitalWellnessGoal
   } = useContext(AppContext);
 
   const quizDate = date || new Date().toISOString().split('T')[0];
@@ -51,10 +59,22 @@ export default function EveningQuizScreen() {
     thoughts: existingEntry?.reflection || '',
     tomorrowGoal: '',
     tomorrowPriority: existingEntry?.tomorrowFocus || '',
+    socialMediaMeaningful: 3,
+    socialMediaDistraction: false,
+    socialMediaAlternatives: [''],
   });
-  const [showTomorrowGoal, setShowTomorrowGoal] = useState(false);
 
   const incompleteGoals = todaysGoals.filter(goal => !responses.completedGoals.includes(goal.id));
+
+  // Calculate total social media usage for today
+  const todayUsageSessions = appUsageSessions.filter(
+    session => session.date === quizDate
+  );
+  
+  const totalSocialMediaMinutes = todayUsageSessions.reduce(
+    (total, session) => total + session.duration,
+    0
+  );
 
   const updateResponse = (key: keyof QuizResponse, value: any) => {
     setResponses(prev => ({ ...prev, [key]: value }));
@@ -75,6 +95,24 @@ export default function EveningQuizScreen() {
     const newGratitude = [...responses.gratitude];
     newGratitude[index] = value;
     updateResponse('gratitude', newGratitude);
+  };
+
+  const updateSocialMediaAlternative = (index: number, value: string) => {
+    const newAlternatives = [...(responses.socialMediaAlternatives || [''])];
+    newAlternatives[index] = value;
+    updateResponse('socialMediaAlternatives', newAlternatives);
+  };
+
+  const addSocialMediaAlternative = () => {
+    const newAlternatives = [...(responses.socialMediaAlternatives || ['']), ''];
+    updateResponse('socialMediaAlternatives', newAlternatives);
+  };
+
+  const removeSocialMediaAlternative = (index: number) => {
+    if ((responses.socialMediaAlternatives?.length || 0) <= 1) return;
+    
+    const newAlternatives = (responses.socialMediaAlternatives || ['']).filter((_, i) => i !== index);
+    updateResponse('socialMediaAlternatives', newAlternatives);
   };
 
   const nextStep = () => {
@@ -108,6 +146,8 @@ export default function EveningQuizScreen() {
       gratitude: responses.gratitude.filter(item => item.trim()),
       challenges: responses.improvements,
       tomorrowFocus: responses.tomorrowPriority,
+      socialMediaMeaningful: responses.socialMediaMeaningful,
+      socialMediaDistraction: responses.socialMediaDistraction,
     };
 
     if (existingEntry) {
@@ -117,10 +157,37 @@ export default function EveningQuizScreen() {
     }
 
     // Add tomorrow's goal if specified
-    if (showTomorrowGoal && responses.tomorrowGoal?.trim()) {
+    if (responses.tomorrowGoal?.trim()) {
       addGoal({
         title: responses.tomorrowGoal.trim(),
         description: `Created from evening reflection on ${format(new Date(quizDate), 'MMM d, yyyy')}`,
+      });
+    }
+
+    // Save social media reflection
+    if (totalSocialMediaMinutes > 0) {
+      addSocialMediaReflection({
+        date: quizDate,
+        totalUsageMinutes: totalSocialMediaMinutes,
+        meaningfulnessRating: responses.socialMediaMeaningful || 3,
+        wasDistraction: responses.socialMediaDistraction || false,
+        alternativeActivities: responses.socialMediaAlternatives?.filter(alt => alt.trim()) || [],
+      });
+    }
+
+    // Add digital wellness goal if user wants to reduce usage
+    if (responses.socialMediaDistraction && totalSocialMediaMinutes > 60) {
+      // Create a goal to reduce usage by 20%
+      const targetValue = Math.round(totalSocialMediaMinutes * 0.8);
+      
+      addDigitalWellnessGoal({
+        type: 'reduce_usage',
+        title: `Reduce social media to ${formatUsageTime(targetValue)} tomorrow`,
+        description: 'Based on your evening reflection',
+        targetValue,
+        currentValue: 0,
+        targetDate: format(new Date(new Date().getTime() + 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
+        isActive: true,
       });
     }
 
@@ -325,57 +392,169 @@ export default function EveningQuizScreen() {
         return (
           <Animated.View entering={FadeInRight} style={styles.stepContainer}>
             <View style={styles.stepHeader}>
-              <Text style={styles.stepTitle}>Do you want to set a goal for tomorrow?</Text>
-              <Text style={styles.stepSubtitle}>Optional: Add a specific goal for tomorrow</Text>
+              <Smartphone size={32} color={COLORS.primary[600]} />
+              <Text style={styles.stepTitle}>Social Media Reflection</Text>
+              <Text style={styles.stepSubtitle}>How meaningful was your screen time today?</Text>
             </View>
             
-            <View style={styles.toggleContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.toggleButton,
-                  !showTomorrowGoal && styles.activeToggleButton
-                ]}
-                onPress={() => setShowTomorrowGoal(false)}
-              >
-                <Text style={[
-                  styles.toggleText,
-                  !showTomorrowGoal && styles.activeToggleText
-                ]}>
-                  No, I'm good
+            {totalSocialMediaMinutes > 0 ? (
+              <>
+                <View style={styles.socialMediaSummary}>
+                  <Text style={styles.socialMediaTime}>
+                    {formatUsageTime(totalSocialMediaMinutes)}
+                  </Text>
+                  <Text style={styles.socialMediaLabel}>
+                    spent on social media today
+                  </Text>
+                </View>
+                
+                <View style={styles.sliderContainer}>
+                  <Text style={styles.sliderValue}>
+                    {responses.socialMediaMeaningful === 1 ? 'Not at all' :
+                     responses.socialMediaMeaningful === 2 ? 'Slightly' :
+                     responses.socialMediaMeaningful === 3 ? 'Somewhat' :
+                     responses.socialMediaMeaningful === 4 ? 'Quite' :
+                     'Very'} meaningful
+                  </Text>
+                  <Slider
+                    style={styles.slider}
+                    minimumValue={1}
+                    maximumValue={5}
+                    step={1}
+                    value={responses.socialMediaMeaningful || 3}
+                    onValueChange={(value) => updateResponse('socialMediaMeaningful', value)}
+                    minimumTrackTintColor={COLORS.primary[500]}
+                    maximumTrackTintColor={COLORS.neutral[300]}
+                    thumbStyle={{ backgroundColor: COLORS.primary[600] }}
+                  />
+                  <View style={styles.sliderLabels}>
+                    <Text style={styles.sliderLabel}>Not meaningful</Text>
+                    <Text style={styles.sliderLabel}>Very meaningful</Text>
+                  </View>
+                </View>
+              </>
+            ) : (
+              <View style={styles.noSocialMediaContainer}>
+                <Text style={styles.noSocialMediaText}>
+                  No social media usage detected today
                 </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[
-                  styles.toggleButton,
-                  showTomorrowGoal && styles.activeToggleButton
-                ]}
-                onPress={() => setShowTomorrowGoal(true)}
-              >
-                <Text style={[
-                  styles.toggleText,
-                  showTomorrowGoal && styles.activeToggleText
-                ]}>
-                  Yes, add a goal
+                <Text style={styles.noSocialMediaSubtext}>
+                  Great job staying focused!
                 </Text>
-              </TouchableOpacity>
-            </View>
-            
-            {showTomorrowGoal && (
-              <Animated.View entering={FadeInDown} style={styles.goalInputContainer}>
-                <TextInput
-                  style={styles.goalInput}
-                  placeholder="What do you want to accomplish tomorrow?"
-                  placeholderTextColor={COLORS.neutral[400]}
-                  value={responses.tomorrowGoal}
-                  onChangeText={(value) => updateResponse('tomorrowGoal', value)}
-                />
-              </Animated.View>
+              </View>
             )}
           </Animated.View>
         );
 
       case 8:
+        return (
+          <Animated.View entering={FadeInRight} style={styles.stepContainer}>
+            <View style={styles.stepHeader}>
+              <Text style={styles.stepTitle}>Was social media a distraction?</Text>
+              <Text style={styles.stepSubtitle}>
+                Did it pull you away from something else you wanted to do?
+              </Text>
+            </View>
+            
+            {totalSocialMediaMinutes > 0 ? (
+              <View style={styles.distractionContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.distractionButton,
+                    responses.socialMediaDistraction === true && styles.selectedDistractionButton
+                  ]}
+                  onPress={() => updateResponse('socialMediaDistraction', true)}
+                >
+                  <Text style={[
+                    styles.distractionButtonText,
+                    responses.socialMediaDistraction === true && styles.selectedDistractionButtonText
+                  ]}>
+                    Yes, it was distracting
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.distractionButton,
+                    responses.socialMediaDistraction === false && styles.selectedDistractionButton
+                  ]}
+                  onPress={() => updateResponse('socialMediaDistraction', false)}
+                >
+                  <Text style={[
+                    styles.distractionButtonText,
+                    responses.socialMediaDistraction === false && styles.selectedDistractionButtonText
+                  ]}>
+                    No, it was intentional
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.noSocialMediaContainer}>
+                <Text style={styles.noSocialMediaText}>
+                  No social media usage detected today
+                </Text>
+                <Text style={styles.noSocialMediaSubtext}>
+                  Great job staying focused!
+                </Text>
+              </View>
+            )}
+          </Animated.View>
+        );
+
+      case 9:
+        return (
+          <Animated.View entering={FadeInRight} style={styles.stepContainer}>
+            <View style={styles.stepHeader}>
+              <Text style={styles.stepTitle}>What would you like to do more of?</Text>
+              <Text style={styles.stepSubtitle}>
+                Instead of social media, what activities would be more fulfilling?
+              </Text>
+            </View>
+            
+            {totalSocialMediaMinutes > 0 ? (
+              <ScrollView style={styles.alternativesList} showsVerticalScrollIndicator={false}>
+                {(responses.socialMediaAlternatives || ['']).map((alternative, index) => (
+                  <View key={index} style={styles.alternativeItem}>
+                    <TextInput
+                      style={styles.alternativeInput}
+                      placeholder={`Alternative activity ${index + 1}...`}
+                      placeholderTextColor={COLORS.neutral[400]}
+                      value={alternative}
+                      onChangeText={(value) => updateSocialMediaAlternative(index, value)}
+                      multiline
+                    />
+                    {(responses.socialMediaAlternatives?.length || 0) > 1 && (
+                      <TouchableOpacity
+                        style={styles.removeButton}
+                        onPress={() => removeSocialMediaAlternative(index)}
+                      >
+                        <X size={16} color={COLORS.error[600]} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ))}
+                
+                <TouchableOpacity
+                  style={styles.addAlternativeButton}
+                  onPress={addSocialMediaAlternative}
+                >
+                  <Text style={styles.addAlternativeText}>+ Add another activity</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            ) : (
+              <View style={styles.noSocialMediaContainer}>
+                <Text style={styles.noSocialMediaText}>
+                  No social media usage detected today
+                </Text>
+                <Text style={styles.noSocialMediaSubtext}>
+                  Great job staying focused!
+                </Text>
+              </View>
+            )}
+          </Animated.View>
+        );
+
+      case 10:
         return (
           <Animated.View entering={FadeInRight} style={styles.stepContainer}>
             <View style={styles.stepHeader}>
@@ -640,42 +819,6 @@ const styles = StyleSheet.create({
     height: 120,
     textAlignVertical: 'top',
   },
-  toggleContainer: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.neutral[100],
-    borderRadius: 8,
-    padding: 4,
-    marginBottom: 20,
-  },
-  toggleButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  activeToggleButton: {
-    backgroundColor: COLORS.primary[600],
-  },
-  toggleText: {
-    fontSize: 16,
-    fontFamily: 'Inter-Medium',
-    color: COLORS.neutral[600],
-  },
-  activeToggleText: {
-    color: COLORS.white,
-  },
-  goalInputContainer: {
-    marginTop: 16,
-  },
-  goalInput: {
-    backgroundColor: COLORS.neutral[50],
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 16,
-    fontFamily: 'Inter-Regular',
-    color: COLORS.neutral[900],
-  },
   priorityInput: {
     backgroundColor: COLORS.neutral[50],
     borderRadius: 8,
@@ -719,5 +862,99 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: COLORS.neutral[300],
+  },
+  socialMediaSummary: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  socialMediaTime: {
+    fontSize: 36,
+    fontFamily: 'Inter-Bold',
+    color: COLORS.primary[600],
+  },
+  socialMediaLabel: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[600],
+    marginTop: 4,
+  },
+  noSocialMediaContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    backgroundColor: COLORS.success[50],
+    borderRadius: 12,
+    marginTop: 20,
+  },
+  noSocialMediaText: {
+    fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.success[700],
+  },
+  noSocialMediaSubtext: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.success[600],
+    marginTop: 8,
+  },
+  distractionContainer: {
+    marginTop: 20,
+    gap: 12,
+  },
+  distractionButton: {
+    backgroundColor: COLORS.neutral[100],
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.neutral[200],
+  },
+  selectedDistractionButton: {
+    backgroundColor: COLORS.primary[50],
+    borderColor: COLORS.primary[300],
+  },
+  distractionButtonText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.neutral[700],
+  },
+  selectedDistractionButtonText: {
+    color: COLORS.primary[700],
+  },
+  alternativesList: {
+    maxHeight: 300,
+    marginTop: 20,
+  },
+  alternativeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  alternativeInput: {
+    flex: 1,
+    backgroundColor: COLORS.neutral[50],
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[900],
+    minHeight: 48,
+  },
+  removeButton: {
+    marginLeft: 8,
+    padding: 8,
+  },
+  addAlternativeButton: {
+    backgroundColor: COLORS.primary[50],
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.primary[200],
+    borderStyle: 'dashed',
+  },
+  addAlternativeText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.primary[600],
   },
 });

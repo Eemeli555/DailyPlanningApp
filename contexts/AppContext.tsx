@@ -25,12 +25,19 @@ import {
   ProductiveActivity,
   ActivityEntry,
   Analytics,
-  DashboardMetric
+  DashboardMetric,
+  TrackedApp,
+  AppUsageSession,
+  IntentPromptResponse,
+  SocialMediaReflection,
+  UsageAlert,
+  DigitalWellnessGoal
 } from '@/types';
 import { generateId } from '@/utils/helpers';
 import { calculateLevel, checkForNewAchievements, generateDailyChallenge } from '@/utils/gamification';
 import { XP_REWARDS } from '@/constants/gamification';
 import { COLORS } from '@/constants/theme';
+import { POPULAR_SOCIAL_APPS, SocialMediaTrackingService } from '@/utils/socialMediaTracking';
 
 interface AppContextProps {
   goalsLibrary: Goal[];
@@ -57,6 +64,14 @@ interface AppContextProps {
   productiveActivities: ProductiveActivity[];
   activityEntries: ActivityEntry[];
   dashboardMetrics: DashboardMetric[];
+  
+  // Social Media Wellness
+  trackedApps: TrackedApp[];
+  appUsageSessions: AppUsageSession[];
+  intentPromptResponses: IntentPromptResponse[];
+  socialMediaReflections: SocialMediaReflection[];
+  usageAlerts: UsageAlert[];
+  digitalWellnessGoals: DigitalWellnessGoal[];
   
   addGoal: (data: { 
     title: string;
@@ -147,6 +162,9 @@ interface AppContextProps {
     mainFocus?: string;
     dailyGoals?: string[];
     morningGratitude?: string;
+    socialMediaMeaningful?: number;
+    socialMediaDistraction?: boolean;
+    socialMediaAlternatives?: string;
   }) => void;
   updateJournalEntry: (entryId: string, updates: Partial<JournalEntry>) => void;
   deleteJournalEntry: (entryId: string) => void;
@@ -189,8 +207,35 @@ interface AppContextProps {
   toggleMetricPin: (metricId: string) => void;
   getAnalytics: () => Analytics;
   
+  // Social Media Wellness functions
+  addTrackedApp: (data: Omit<TrackedApp, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateTrackedApp: (appId: string, updates: Partial<TrackedApp>) => void;
+  removeTrackedApp: (appId: string) => void;
+  
+  addAppUsageSession: (data: Omit<AppUsageSession, 'id' | 'createdAt'>) => void;
+  updateAppUsageSession: (sessionId: string, updates: Partial<AppUsageSession>) => void;
+  
+  addIntentPromptResponse: (data: Omit<IntentPromptResponse, 'id' | 'createdAt'>) => void;
+  
+  addSocialMediaReflection: (data: Omit<SocialMediaReflection, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateSocialMediaReflection: (reflectionId: string, updates: Partial<SocialMediaReflection>) => void;
+  
+  addUsageAlert: (data: Omit<UsageAlert, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateUsageAlert: (alertId: string, updates: Partial<UsageAlert>) => void;
+  removeUsageAlert: (alertId: string) => void;
+  
+  addDigitalWellnessGoal: (data: Omit<DigitalWellnessGoal, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateDigitalWellnessGoal: (goalId: string, updates: Partial<DigitalWellnessGoal>) => void;
+  removeDigitalWellnessGoal: (goalId: string) => void;
+  
+  // Social media tracking service
+  startSocialMediaTracking: () => Promise<void>;
+  stopSocialMediaTracking: () => void;
+  checkForIntentPrompt: (packageName: string) => Promise<boolean>;
+  
   awardXP: (amount: number, reason: string) => void;
   completeDailyChallenge: () => void;
+  updateUserProfile: (updates: Partial<UserProfile>) => void;
 }
 
 export const AppContext = createContext<AppContextProps>({
@@ -214,6 +259,12 @@ export const AppContext = createContext<AppContextProps>({
   productiveActivities: [],
   activityEntries: [],
   dashboardMetrics: [],
+  trackedApps: [],
+  appUsageSessions: [],
+  intentPromptResponses: [],
+  socialMediaReflections: [],
+  usageAlerts: [],
+  digitalWellnessGoals: [],
   
   addGoal: () => {},
   updateGoal: () => {},
@@ -271,12 +322,37 @@ export const AppContext = createContext<AppContextProps>({
     goals: { totalCompleted: 0, inProgress: 0, averageCompletionTime: 0, categoryBreakdown: [] },
     mood: { averageMood: 0, moodTrend: [], energyTrend: [], stressTrend: [] },
     sleep: { averageHours: 0, averageQuality: 0, sleepTrend: [], weeklyPattern: [] },
-    socialMedia: { dailyAverage: 0, weeklyTrend: [], appBreakdown: [], streakDaysUnderAverage: 0 },
+    socialMedia: { dailyAverage: 0, weeklyTrend: [], appBreakdown: [], streakDaysUnderAverage: 0, intentfulnessScore: 0, mostCommonReasons: [] },
     productivity: { tasksCompleted: 0, averageDailyProgress: 0, mostProductiveDays: [], weeklyTrends: [], activitiesCompleted: [] },
   }),
   
+  addTrackedApp: () => {},
+  updateTrackedApp: () => {},
+  removeTrackedApp: () => {},
+  
+  addAppUsageSession: () => {},
+  updateAppUsageSession: () => {},
+  
+  addIntentPromptResponse: () => {},
+  
+  addSocialMediaReflection: () => {},
+  updateSocialMediaReflection: () => {},
+  
+  addUsageAlert: () => {},
+  updateUsageAlert: () => {},
+  removeUsageAlert: () => {},
+  
+  addDigitalWellnessGoal: () => {},
+  updateDigitalWellnessGoal: () => {},
+  removeDigitalWellnessGoal: () => {},
+  
+  startSocialMediaTracking: async () => {},
+  stopSocialMediaTracking: () => {},
+  checkForIntentPrompt: async () => false,
+  
   awardXP: () => {},
   completeDailyChallenge: () => {},
+  updateUserProfile: () => {},
 });
 
 const QUOTES = [
@@ -365,6 +441,16 @@ const DEFAULT_DASHBOARD_METRICS: DashboardMetric[] = [
     isPinned: false,
     category: 'productivity',
   },
+  {
+    id: 'mindful-usage',
+    title: 'Mindful Usage',
+    value: '0%',
+    subtitle: 'This week',
+    color: COLORS.accent[600],
+    icon: '🧘',
+    isPinned: false,
+    category: 'social',
+  },
 ];
 
 interface AppProviderProps {
@@ -398,7 +484,18 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   const [activityEntries, setActivityEntries] = useState<ActivityEntry[]>([]);
   const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetric[]>(DEFAULT_DASHBOARD_METRICS);
   
+  // Social Media Wellness state
+  const [trackedApps, setTrackedApps] = useState<TrackedApp[]>([]);
+  const [appUsageSessions, setAppUsageSessions] = useState<AppUsageSession[]>([]);
+  const [intentPromptResponses, setIntentPromptResponses] = useState<IntentPromptResponse[]>([]);
+  const [socialMediaReflections, setSocialMediaReflections] = useState<SocialMediaReflection[]>([]);
+  const [usageAlerts, setUsageAlerts] = useState<UsageAlert[]>([]);
+  const [digitalWellnessGoals, setDigitalWellnessGoals] = useState<DigitalWellnessGoal[]>([]);
+  
   const [loaded, setLoaded] = useState(false);
+  
+  // Social Media Tracking Service
+  const trackingService = SocialMediaTrackingService.getInstance();
   
   useEffect(() => {
     const loadData = async () => {
@@ -475,6 +572,46 @@ export const AppProvider = ({ children }: AppProviderProps) => {
           setDashboardMetrics(JSON.parse(storedDashboardMetrics));
         }
         
+        // Load Social Media Wellness data
+        const storedTrackedApps = await AsyncStorage.getItem('trackedApps');
+        if (storedTrackedApps) {
+          setTrackedApps(JSON.parse(storedTrackedApps));
+        } else {
+          // Initialize with popular apps
+          const initialApps = POPULAR_SOCIAL_APPS.slice(0, 5).map(app => ({
+            ...app,
+            id: generateId(),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }));
+          setTrackedApps(initialApps);
+        }
+        
+        const storedAppUsageSessions = await AsyncStorage.getItem('appUsageSessions');
+        if (storedAppUsageSessions) {
+          setAppUsageSessions(JSON.parse(storedAppUsageSessions));
+        }
+        
+        const storedIntentPromptResponses = await AsyncStorage.getItem('intentPromptResponses');
+        if (storedIntentPromptResponses) {
+          setIntentPromptResponses(JSON.parse(storedIntentPromptResponses));
+        }
+        
+        const storedSocialMediaReflections = await AsyncStorage.getItem('socialMediaReflections');
+        if (storedSocialMediaReflections) {
+          setSocialMediaReflections(JSON.parse(storedSocialMediaReflections));
+        }
+        
+        const storedUsageAlerts = await AsyncStorage.getItem('usageAlerts');
+        if (storedUsageAlerts) {
+          setUsageAlerts(JSON.parse(storedUsageAlerts));
+        }
+        
+        const storedDigitalWellnessGoals = await AsyncStorage.getItem('digitalWellnessGoals');
+        if (storedDigitalWellnessGoals) {
+          setDigitalWellnessGoals(JSON.parse(storedDigitalWellnessGoals));
+        }
+        
         const storedUserProfile = await AsyncStorage.getItem('userProfile');
         if (storedUserProfile) {
           setUserProfile(JSON.parse(storedUserProfile));
@@ -497,6 +634,8 @@ export const AppProvider = ({ children }: AppProviderProps) => {
               theme: 'light',
               notifications: true,
               weekStartsOn: 1,
+              socialMediaTracking: true,
+              intentPrompts: true,
             },
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
@@ -550,6 +689,18 @@ export const AppProvider = ({ children }: AppProviderProps) => {
           registerForPushNotificationsAsync();
         }
         
+        // Start social media tracking if enabled
+        if (Platform.OS === 'android') {
+          const profile = JSON.parse(storedUserProfile || '{}');
+          if (profile?.preferences?.socialMediaTracking) {
+            try {
+              await trackingService.startTracking();
+            } catch (error) {
+              console.error('Failed to start social media tracking:', error);
+            }
+          }
+        }
+        
         setLoaded(true);
       } catch (error) {
         console.error('Error loading data:', error);
@@ -558,6 +709,11 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     };
     
     loadData();
+    
+    // Cleanup function
+    return () => {
+      trackingService.stopTracking();
+    };
   }, []);
 
   // Calculate progress for today - Only count real goals, not habits
@@ -627,6 +783,15 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       await AsyncStorage.setItem('productiveActivities', JSON.stringify(productiveActivities));
       await AsyncStorage.setItem('activityEntries', JSON.stringify(activityEntries));
       await AsyncStorage.setItem('dashboardMetrics', JSON.stringify(dashboardMetrics));
+      
+      // Save Social Media Wellness data
+      await AsyncStorage.setItem('trackedApps', JSON.stringify(trackedApps));
+      await AsyncStorage.setItem('appUsageSessions', JSON.stringify(appUsageSessions));
+      await AsyncStorage.setItem('intentPromptResponses', JSON.stringify(intentPromptResponses));
+      await AsyncStorage.setItem('socialMediaReflections', JSON.stringify(socialMediaReflections));
+      await AsyncStorage.setItem('usageAlerts', JSON.stringify(usageAlerts));
+      await AsyncStorage.setItem('digitalWellnessGoals', JSON.stringify(digitalWellnessGoals));
+      
       if (userProfile) {
         await AsyncStorage.setItem('userProfile', JSON.stringify(userProfile));
       }
@@ -634,7 +799,13 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     };
     
     saveData();
-  }, [goalsLibrary, dailyEntries, plannerSettings, habits, habitEntries, longTermGoals, journalEntries, userProfile, achievements, sleepData, socialMediaData, productiveActivities, activityEntries, dashboardMetrics, loaded]);
+  }, [
+    goalsLibrary, dailyEntries, plannerSettings, habits, habitEntries, longTermGoals, 
+    journalEntries, userProfile, achievements, sleepData, socialMediaData, 
+    productiveActivities, activityEntries, dashboardMetrics, trackedApps, 
+    appUsageSessions, intentPromptResponses, socialMediaReflections, usageAlerts, 
+    digitalWellnessGoals, loaded
+  ]);
   
   // Add a new goal
   const addGoal = (data: { 
@@ -1152,6 +1323,9 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     mainFocus?: string;
     dailyGoals?: string[];
     morningGratitude?: string;
+    socialMediaMeaningful?: number;
+    socialMediaDistraction?: boolean;
+    socialMediaAlternatives?: string;
   }) => {
     const newEntry: JournalEntry = {
       id: generateId(),
@@ -1357,6 +1531,27 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     const totalSocialMinutes = socialMediaData.reduce((sum, usage) => sum + usage.totalMinutes, 0);
     const dailyAverageSocial = socialMediaData.length > 0 ? totalSocialMinutes / socialMediaData.length : 0;
     
+    // Calculate intentfulness score
+    const intentfulResponses = intentPromptResponses.filter(
+      response => response.reason !== 'skipped' && response.reason !== 'bored'
+    );
+    const intentfulnessScore = intentPromptResponses.length > 0
+      ? (intentfulResponses.length / intentPromptResponses.length) * 100
+      : 0;
+    
+    // Calculate most common reasons
+    const reasonCounts: Record<string, number> = {};
+    intentPromptResponses.forEach(response => {
+      if (!reasonCounts[response.reason]) {
+        reasonCounts[response.reason] = 0;
+      }
+      reasonCounts[response.reason]++;
+    });
+    
+    const mostCommonReasons = Object.entries(reasonCounts)
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((a, b) => b.count - a.count);
+    
     return {
       habits: {
         totalCompleted: totalHabitsCompleted,
@@ -1391,6 +1586,8 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         weeklyTrend: socialMediaData.map(usage => ({ date: usage.date, minutes: usage.totalMinutes })),
         appBreakdown: [],
         streakDaysUnderAverage: 0,
+        intentfulnessScore,
+        mostCommonReasons,
       },
       productivity: {
         tasksCompleted: dailyPlans.reduce((sum, plan) => sum + plan.goalsCompleted, 0),
@@ -1400,6 +1597,184 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         activitiesCompleted: [],
       },
     };
+  };
+
+  // Social Media Wellness functions
+  const addTrackedApp = (data: Omit<TrackedApp, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const newApp: TrackedApp = {
+      id: generateId(),
+      ...data,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    setTrackedApps(prev => [...prev, newApp]);
+  };
+
+  const updateTrackedApp = (appId: string, updates: Partial<TrackedApp>) => {
+    setTrackedApps(prev => prev.map(app =>
+      app.id === appId
+        ? { ...app, ...updates, updatedAt: new Date().toISOString() }
+        : app
+    ));
+  };
+
+  const removeTrackedApp = (appId: string) => {
+    setTrackedApps(prev => prev.filter(app => app.id !== appId));
+    
+    // Also remove related data
+    setAppUsageSessions(prev => prev.filter(session => session.appId !== appId));
+    setIntentPromptResponses(prev => prev.filter(response => response.appId !== appId));
+    setUsageAlerts(prev => prev.filter(alert => alert.appId !== appId));
+  };
+
+  const addAppUsageSession = (data: Omit<AppUsageSession, 'id' | 'createdAt'>) => {
+    const newSession: AppUsageSession = {
+      id: generateId(),
+      ...data,
+      createdAt: new Date().toISOString(),
+    };
+    
+    setAppUsageSessions(prev => [...prev, newSession]);
+  };
+
+  const updateAppUsageSession = (sessionId: string, updates: Partial<AppUsageSession>) => {
+    setAppUsageSessions(prev => prev.map(session =>
+      session.id === sessionId
+        ? { ...session, ...updates }
+        : session
+    ));
+  };
+
+  const addIntentPromptResponse = (data: Omit<IntentPromptResponse, 'id' | 'createdAt'>) => {
+    const newResponse: IntentPromptResponse = {
+      id: generateId(),
+      ...data,
+      createdAt: new Date().toISOString(),
+    };
+    
+    setIntentPromptResponses(prev => [...prev, newResponse]);
+  };
+
+  const addSocialMediaReflection = (data: Omit<SocialMediaReflection, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const newReflection: SocialMediaReflection = {
+      id: generateId(),
+      ...data,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    setSocialMediaReflections(prev => {
+      // Remove existing reflection for the same date
+      const filtered = prev.filter(reflection => reflection.date !== data.date);
+      return [...filtered, newReflection];
+    });
+  };
+
+  const updateSocialMediaReflection = (reflectionId: string, updates: Partial<SocialMediaReflection>) => {
+    setSocialMediaReflections(prev => prev.map(reflection =>
+      reflection.id === reflectionId
+        ? { ...reflection, ...updates, updatedAt: new Date().toISOString() }
+        : reflection
+    ));
+  };
+
+  const addUsageAlert = (data: Omit<UsageAlert, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const newAlert: UsageAlert = {
+      id: generateId(),
+      ...data,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    setUsageAlerts(prev => [...prev, newAlert]);
+  };
+
+  const updateUsageAlert = (alertId: string, updates: Partial<UsageAlert>) => {
+    setUsageAlerts(prev => prev.map(alert =>
+      alert.id === alertId
+        ? { ...alert, ...updates, updatedAt: new Date().toISOString() }
+        : alert
+    ));
+  };
+
+  const removeUsageAlert = (alertId: string) => {
+    setUsageAlerts(prev => prev.filter(alert => alert.id !== alertId));
+  };
+
+  const addDigitalWellnessGoal = (data: Omit<DigitalWellnessGoal, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const newGoal: DigitalWellnessGoal = {
+      id: generateId(),
+      ...data,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    setDigitalWellnessGoals(prev => [...prev, newGoal]);
+  };
+
+  const updateDigitalWellnessGoal = (goalId: string, updates: Partial<DigitalWellnessGoal>) => {
+    setDigitalWellnessGoals(prev => prev.map(goal =>
+      goal.id === goalId
+        ? { ...goal, ...updates, updatedAt: new Date().toISOString() }
+        : goal
+    ));
+  };
+
+  const removeDigitalWellnessGoal = (goalId: string) => {
+    setDigitalWellnessGoals(prev => prev.filter(goal => goal.id !== goalId));
+  };
+
+  // Social media tracking service functions
+  const startSocialMediaTracking = async (): Promise<void> => {
+    if (Platform.OS !== 'android') {
+      console.log('Social media tracking only available on Android');
+      return;
+    }
+    
+    try {
+      await trackingService.startTracking();
+      
+      // Update user preferences
+      if (userProfile) {
+        updateUserProfile({
+          preferences: {
+            ...userProfile.preferences,
+            socialMediaTracking: true,
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to start social media tracking:', error);
+      throw error;
+    }
+  };
+
+  const stopSocialMediaTracking = (): void => {
+    trackingService.stopTracking();
+    
+    // Update user preferences
+    if (userProfile) {
+      updateUserProfile({
+        preferences: {
+          ...userProfile.preferences,
+          socialMediaTracking: false,
+        }
+      });
+    }
+  };
+
+  const checkForIntentPrompt = async (packageName: string): Promise<boolean> => {
+    if (Platform.OS !== 'android' || !userProfile?.preferences.intentPrompts) {
+      return false;
+    }
+    
+    const app = trackedApps.find(app => app.packageName === packageName);
+    if (!app || !app.intentPromptEnabled) {
+      return false;
+    }
+    
+    return true;
   };
 
   const awardXP = (amount: number, reason: string) => {
@@ -1486,6 +1861,18 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     AsyncStorage.setItem(`dailyChallenge_${dailyChallenge.date}`, JSON.stringify(updatedChallenge));
   };
 
+  const updateUserProfile = (updates: Partial<UserProfile>) => {
+    setUserProfile(prev => {
+      if (!prev) return null;
+      
+      return {
+        ...prev,
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -1509,6 +1896,12 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         productiveActivities,
         activityEntries,
         dashboardMetrics,
+        trackedApps,
+        appUsageSessions,
+        intentPromptResponses,
+        socialMediaReflections,
+        usageAlerts,
+        digitalWellnessGoals,
         
         addGoal,
         updateGoal,
@@ -1563,8 +1956,33 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         toggleMetricPin,
         getAnalytics,
         
+        addTrackedApp,
+        updateTrackedApp,
+        removeTrackedApp,
+        
+        addAppUsageSession,
+        updateAppUsageSession,
+        
+        addIntentPromptResponse,
+        
+        addSocialMediaReflection,
+        updateSocialMediaReflection,
+        
+        addUsageAlert,
+        updateUsageAlert,
+        removeUsageAlert,
+        
+        addDigitalWellnessGoal,
+        updateDigitalWellnessGoal,
+        removeDigitalWellnessGoal,
+        
+        startSocialMediaTracking,
+        stopSocialMediaTracking,
+        checkForIntentPrompt,
+        
         awardXP,
         completeDailyChallenge,
+        updateUserProfile,
       }}
     >
       {children}
