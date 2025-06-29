@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Platform }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, isWithinInterval } from 'date-fns';
 import { Calendar, ChartBar as BarChart3, TrendingUp, Settings, Moon, Smartphone, Activity, Target, Bell } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 
 import { AppContext } from '@/contexts/AppContext';
 import { COLORS } from '@/constants/theme';

@@ -1,15 +1,23 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { format, subDays } from 'date-fns';
 import { COLORS } from '@/constants/theme';
-import { SocialMediaUsage } from '@/types';
+import { TrackedApp, AppUsageSession } from '@/types';
+import { formatUsageTime } from '@/utils/socialMediaTracking';
 
 interface SocialMediaChartProps {
-  socialMediaData: SocialMediaUsage[];
+  apps: TrackedApp[];
+  usageSessions: AppUsageSession[];
   days?: number;
+  onAppPress?: (app: TrackedApp) => void;
 }
 
-const SocialMediaChart = ({ socialMediaData, days = 7 }: SocialMediaChartProps) => {
+const SocialMediaChart = ({ 
+  apps, 
+  usageSessions, 
+  days = 7, 
+  onAppPress 
+}: SocialMediaChartProps) => {
   const maxHeight = 100;
   
   // Generate last N days
@@ -20,12 +28,13 @@ const SocialMediaChart = ({ socialMediaData, days = 7 }: SocialMediaChartProps) 
   });
   
   const getUsageForDay = (date: string) => {
-    return socialMediaData.find(usage => usage.date === date);
+    const daySessions = usageSessions.filter(session => session.date === date);
+    return daySessions.reduce((total, session) => total + session.duration, 0);
   };
 
   // Calculate max minutes for scaling
   const maxMinutes = Math.max(
-    ...socialMediaData.map(usage => usage.totalMinutes),
+    ...chartDays.map(date => getUsageForDay(date)),
     120 // Minimum scale of 2 hours
   );
 
@@ -38,8 +47,8 @@ const SocialMediaChart = ({ socialMediaData, days = 7 }: SocialMediaChartProps) 
   };
 
   // Calculate average
-  const totalMinutes = socialMediaData.reduce((sum, usage) => sum + usage.totalMinutes, 0);
-  const average = socialMediaData.length > 0 ? totalMinutes / socialMediaData.length : 0;
+  const totalMinutes = chartDays.reduce((sum, date) => sum + getUsageForDay(date), 0);
+  const average = chartDays.length > 0 ? totalMinutes / chartDays.length : 0;
 
   const formatTime = (minutes: number) => {
     if (minutes === 0) return '0m';
@@ -59,8 +68,7 @@ const SocialMediaChart = ({ socialMediaData, days = 7 }: SocialMediaChartProps) 
       
       <View style={styles.chart}>
         {chartDays.map((date, index) => {
-          const usage = getUsageForDay(date);
-          const minutes = usage?.totalMinutes || 0;
+          const minutes = getUsageForDay(date);
           const height = Math.max((minutes / maxMinutes) * maxHeight, 4);
           const color = getUsageColor(minutes, average);
           
