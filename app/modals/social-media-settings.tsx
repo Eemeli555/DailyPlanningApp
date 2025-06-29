@@ -44,24 +44,40 @@ export default function SocialMediaSettingsScreen() {
     const app = trackedApps.find(a => a.id === appId);
     if (!app) return;
 
-    Alert.prompt(
-      'Set Daily Limit',
-      `How many minutes per day for ${app.displayName}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Set', 
-          onPress: (value) => {
-            const minutes = parseInt(value || '0');
-            if (minutes > 0) {
-              updateTrackedApp(appId, { dailyLimit: minutes });
+    if (Platform.OS === 'web') {
+      // Use window.prompt for web platform
+      const value = window.prompt(
+        `Set Daily Limit\n\nHow many minutes per day for ${app.displayName}?`,
+        app.dailyLimit?.toString() || '60'
+      );
+      
+      if (value !== null) {
+        const minutes = parseInt(value);
+        if (minutes > 0) {
+          updateTrackedApp(appId, { dailyLimit: minutes });
+        }
+      }
+    } else {
+      // Use Alert.prompt for native platforms
+      Alert.prompt(
+        'Set Daily Limit',
+        `How many minutes per day for ${app.displayName}?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Set', 
+            onPress: (value) => {
+              const minutes = parseInt(value || '0');
+              if (minutes > 0) {
+                updateTrackedApp(appId, { dailyLimit: minutes });
+              }
             }
           }
-        }
-      ],
-      'plain-text',
-      app.dailyLimit?.toString() || '60'
-    );
+        ],
+        'plain-text',
+        app.dailyLimit?.toString() || '60'
+      );
+    }
   };
 
   const handleRemoveApp = (appId: string) => {
@@ -273,7 +289,7 @@ export default function SocialMediaSettingsScreen() {
                     <Text style={styles.appPackage}>{app.packageName}</Text>
                     {app.dailyLimit && (
                       <Text style={styles.appLimit}>
-                        Daily limit: {formatUsageTime(app.dailyLimit)}
+                        Daily limit: {String(formatUsageTime(app.dailyLimit))}
                       </Text>
                     )}
                   </View>
