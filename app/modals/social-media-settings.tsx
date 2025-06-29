@@ -1,7 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, TextInput, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Smartphone, Bell, Target, Plus, Settings, Trash2, Edit } from 'lucide-react-native';
+import { Smartphone, Bell, Target, Plus, Settings, Trash2, CreditCard as Edit } from 'lucide-react-native';
 import { COLORS } from '@/constants/theme';
 import { AppContext } from '@/contexts/AppContext';
 import { POPULAR_SOCIAL_APPS, formatUsageTime } from '@/utils/socialMediaTracking';
