@@ -2,7 +2,7 @@ import React, { createContext, ReactNode, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
-import { format, isWithinInterval, startOfDay, endOfDay, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
+import { format, isWithinInterval, startOfDay, endOfDay, startOfMonth, endOfMonth, eachDayOfInterval, isToday, parseISO, isSameDay } from 'date-fns';
 import { useRouter } from 'expo-router';
 import { 
   DailyPlan, 
@@ -37,7 +37,7 @@ import { generateId } from '@/utils/helpers';
 import { calculateLevel, checkForNewAchievements, generateDailyChallenge } from '@/utils/gamification';
 import { XP_REWARDS } from '@/constants/gamification';
 import { COLORS } from '@/constants/theme';
-import { POPULAR_SOCIAL_APPS, SocialMediaTrackingService } from '@/utils/socialMediaTracking';
+import { POPULAR_SOCIAL_APPS } from '@/utils/socialMediaTracking';
 
 interface AppContextProps {
   goalsLibrary: Goal[];
@@ -72,6 +72,10 @@ interface AppContextProps {
   socialMediaReflections: SocialMediaReflection[];
   usageAlerts: UsageAlert[];
   digitalWellnessGoals: DigitalWellnessGoal[];
+  
+  // Quiz availability
+  canTakeMorningQuiz: boolean;
+  canTakeEveningQuiz: boolean;
   
   addGoal: (data: { 
     title: string;
@@ -164,7 +168,7 @@ interface AppContextProps {
     morningGratitude?: string;
     socialMediaMeaningful?: number;
     socialMediaDistraction?: boolean;
-    socialMediaAlternatives?: string;
+    socialMediaAlternatives?: string[];
   }) => void;
   updateJournalEntry: (entryId: string, updates: Partial<JournalEntry>) => void;
   deleteJournalEntry: (entryId: string) => void;
@@ -207,13 +211,12 @@ interface AppContextProps {
   toggleMetricPin: (metricId: string) => void;
   getAnalytics: () => Analytics;
   
-  // Social Media Wellness functions
+  // Social Media Wellness
   addTrackedApp: (data: Omit<TrackedApp, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateTrackedApp: (appId: string, updates: Partial<TrackedApp>) => void;
   removeTrackedApp: (appId: string) => void;
   
   addAppUsageSession: (data: Omit<AppUsageSession, 'id' | 'createdAt'>) => void;
-  updateAppUsageSession: (sessionId: string, updates: Partial<AppUsageSession>) => void;
   
   addIntentPromptResponse: (data: Omit<IntentPromptResponse, 'id' | 'createdAt'>) => void;
   
@@ -228,14 +231,14 @@ interface AppContextProps {
   updateDigitalWellnessGoal: (goalId: string, updates: Partial<DigitalWellnessGoal>) => void;
   removeDigitalWellnessGoal: (goalId: string) => void;
   
-  // Social media tracking service
-  startSocialMediaTracking: () => Promise<void>;
-  stopSocialMediaTracking: () => void;
-  checkForIntentPrompt: (packageName: string) => Promise<boolean>;
+  // User profile
+  updateUserProfile: (updates: Partial<UserProfile>) => void;
+  
+  // Reminders
+  scheduleQuizReminders: () => void;
   
   awardXP: (amount: number, reason: string) => void;
   completeDailyChallenge: () => void;
-  updateUserProfile: (updates: Partial<UserProfile>) => void;
 }
 
 export const AppContext = createContext<AppContextProps>({
@@ -259,12 +262,18 @@ export const AppContext = createContext<AppContextProps>({
   productiveActivities: [],
   activityEntries: [],
   dashboardMetrics: [],
+  
+  // Social Media Wellness
   trackedApps: [],
   appUsageSessions: [],
   intentPromptResponses: [],
   socialMediaReflections: [],
   usageAlerts: [],
   digitalWellnessGoals: [],
+  
+  // Quiz availability
+  canTakeMorningQuiz: false,
+  canTakeEveningQuiz: false,
   
   addGoal: () => {},
   updateGoal: () => {},
@@ -322,16 +331,23 @@ export const AppContext = createContext<AppContextProps>({
     goals: { totalCompleted: 0, inProgress: 0, averageCompletionTime: 0, categoryBreakdown: [] },
     mood: { averageMood: 0, moodTrend: [], energyTrend: [], stressTrend: [] },
     sleep: { averageHours: 0, averageQuality: 0, sleepTrend: [], weeklyPattern: [] },
-    socialMedia: { dailyAverage: 0, weeklyTrend: [], appBreakdown: [], streakDaysUnderAverage: 0, intentfulnessScore: 0, mostCommonReasons: [] },
+    socialMedia: { 
+      dailyAverage: 0, 
+      weeklyTrend: [], 
+      appBreakdown: [], 
+      streakDaysUnderAverage: 0,
+      intentfulnessScore: 0,
+      mostCommonReasons: []
+    },
     productivity: { tasksCompleted: 0, averageDailyProgress: 0, mostProductiveDays: [], weeklyTrends: [], activitiesCompleted: [] },
   }),
   
+  // Social Media Wellness
   addTrackedApp: () => {},
   updateTrackedApp: () => {},
   removeTrackedApp: () => {},
   
   addAppUsageSession: () => {},
-  updateAppUsageSession: () => {},
   
   addIntentPromptResponse: () => {},
   
@@ -346,13 +362,12 @@ export const AppContext = createContext<AppContextProps>({
   updateDigitalWellnessGoal: () => {},
   removeDigitalWellnessGoal: () => {},
   
-  startSocialMediaTracking: async () => {},
-  stopSocialMediaTracking: () => {},
-  checkForIntentPrompt: async () => false,
+  updateUserProfile: () => {},
+  
+  scheduleQuizReminders: () => {},
   
   awardXP: () => {},
   completeDailyChallenge: () => {},
-  updateUserProfile: () => {},
 });
 
 const QUOTES = [
@@ -445,9 +460,9 @@ const DEFAULT_DASHBOARD_METRICS: DashboardMetric[] = [
     id: 'mindful-usage',
     title: 'Mindful Usage',
     value: '0%',
-    subtitle: 'This week',
-    color: COLORS.accent[600],
-    icon: '🧘',
+    subtitle: 'Intentional usage',
+    color: COLORS.secondary[600],
+    icon: '🧠',
     isPinned: false,
     category: 'social',
   },
@@ -492,10 +507,11 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   const [usageAlerts, setUsageAlerts] = useState<UsageAlert[]>([]);
   const [digitalWellnessGoals, setDigitalWellnessGoals] = useState<DigitalWellnessGoal[]>([]);
   
-  const [loaded, setLoaded] = useState(false);
+  // Quiz availability state
+  const [canTakeMorningQuiz, setCanTakeMorningQuiz] = useState(false);
+  const [canTakeEveningQuiz, setCanTakeEveningQuiz] = useState(false);
   
-  // Social Media Tracking Service
-  const trackingService = SocialMediaTrackingService.getInstance();
+  const [loaded, setLoaded] = useState(false);
   
   useEffect(() => {
     const loadData = async () => {
@@ -577,14 +593,15 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         if (storedTrackedApps) {
           setTrackedApps(JSON.parse(storedTrackedApps));
         } else {
-          // Initialize with popular apps
-          const initialApps = POPULAR_SOCIAL_APPS.slice(0, 5).map(app => ({
+          // Initialize with default apps
+          const defaultApps = POPULAR_SOCIAL_APPS.slice(0, 5).map(app => ({
             ...app,
             id: generateId(),
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           }));
-          setTrackedApps(initialApps);
+          setTrackedApps(defaultApps);
+          await AsyncStorage.setItem('trackedApps', JSON.stringify(defaultApps));
         }
         
         const storedAppUsageSessions = await AsyncStorage.getItem('appUsageSessions');
@@ -689,17 +706,11 @@ export const AppProvider = ({ children }: AppProviderProps) => {
           registerForPushNotificationsAsync();
         }
         
-        // Start social media tracking if enabled
-        if (Platform.OS === 'android') {
-          const profile = JSON.parse(storedUserProfile || '{}');
-          if (profile?.preferences?.socialMediaTracking) {
-            try {
-              await trackingService.startTracking();
-            } catch (error) {
-              console.error('Failed to start social media tracking:', error);
-            }
-          }
-        }
+        // Schedule quiz reminders
+        scheduleQuizReminders();
+        
+        // Check quiz availability
+        checkQuizAvailability();
         
         setLoaded(true);
       } catch (error) {
@@ -709,12 +720,32 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     };
     
     loadData();
-    
-    // Cleanup function
-    return () => {
-      trackingService.stopTracking();
-    };
   }, []);
+
+  // Check quiz availability
+  const checkQuizAvailability = () => {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Check if morning quiz was already taken today
+    const tookMorningQuizToday = journalEntries.some(entry => 
+      entry.date === today && entry.type === 'morning'
+    );
+    
+    // Check if evening quiz was already taken today
+    const tookEveningQuizToday = journalEntries.some(entry => 
+      entry.date === today && entry.type === 'evening'
+    );
+    
+    setCanTakeMorningQuiz(!tookMorningQuizToday);
+    setCanTakeEveningQuiz(!tookEveningQuizToday);
+  };
+
+  // Update quiz availability whenever journal entries change
+  useEffect(() => {
+    if (loaded) {
+      checkQuizAvailability();
+    }
+  }, [journalEntries, loaded]);
 
   // Calculate progress for today - Only count real goals, not habits
   const progressToday = todaysGoals.length > 0
@@ -800,11 +831,11 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     
     saveData();
   }, [
-    goalsLibrary, dailyEntries, plannerSettings, habits, habitEntries, longTermGoals, 
-    journalEntries, userProfile, achievements, sleepData, socialMediaData, 
-    productiveActivities, activityEntries, dashboardMetrics, trackedApps, 
-    appUsageSessions, intentPromptResponses, socialMediaReflections, usageAlerts, 
-    digitalWellnessGoals, loaded
+    goalsLibrary, dailyEntries, plannerSettings, habits, habitEntries, 
+    longTermGoals, journalEntries, userProfile, achievements, sleepData, 
+    socialMediaData, productiveActivities, activityEntries, dashboardMetrics,
+    trackedApps, appUsageSessions, intentPromptResponses, socialMediaReflections,
+    usageAlerts, digitalWellnessGoals, loaded
   ]);
   
   // Add a new goal
@@ -1006,6 +1037,64 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       });
     } catch (error) {
       console.error('Error registering for push notifications:', error);
+    }
+  };
+
+  // Schedule quiz reminders
+  const scheduleQuizReminders = async () => {
+    if (Platform.OS === 'web' || !userProfile?.preferences.notifications) return;
+    
+    try {
+      // Cancel existing reminders
+      await Notifications.cancelAllScheduledNotificationsAsync();
+      
+      // Schedule morning quiz reminder (8:00 AM)
+      const morningTime = new Date();
+      morningTime.setHours(8, 0, 0, 0);
+      
+      // If it's already past 8 AM, schedule for tomorrow
+      if (morningTime.getTime() < Date.now()) {
+        morningTime.setDate(morningTime.getDate() + 1);
+      }
+      
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Morning Planning',
+          body: 'Start your day with intention by completing your morning planning.',
+          sound: true,
+        },
+        trigger: {
+          hour: 8,
+          minute: 0,
+          repeats: true,
+        },
+      });
+      
+      // Schedule evening quiz reminder (9:00 PM)
+      const eveningTime = new Date();
+      eveningTime.setHours(21, 0, 0, 0);
+      
+      // If it's already past 9 PM, schedule for tomorrow
+      if (eveningTime.getTime() < Date.now()) {
+        eveningTime.setDate(eveningTime.getDate() + 1);
+      }
+      
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Evening Reflection',
+          body: 'Take a moment to reflect on your day and plan for tomorrow.',
+          sound: true,
+        },
+        trigger: {
+          hour: 21,
+          minute: 0,
+          repeats: true,
+        },
+      });
+      
+      console.log('Quiz reminders scheduled successfully');
+    } catch (error) {
+      console.error('Error scheduling quiz reminders:', error);
     }
   };
 
@@ -1325,7 +1414,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     morningGratitude?: string;
     socialMediaMeaningful?: number;
     socialMediaDistraction?: boolean;
-    socialMediaAlternatives?: string;
+    socialMediaAlternatives?: string[];
   }) => {
     const newEntry: JournalEntry = {
       id: generateId(),
@@ -1345,12 +1434,17 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       mainFocus: data.mainFocus,
       dailyGoals: data.dailyGoals,
       morningGratitude: data.morningGratitude,
+      socialMediaMeaningful: data.socialMediaMeaningful,
+      socialMediaDistraction: data.socialMediaDistraction,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     
     setJournalEntries(prev => [...prev, newEntry]);
     awardXP(XP_REWARDS.JOURNAL_ENTRY, 'Journal entry created');
+    
+    // Update quiz availability
+    checkQuizAvailability();
   };
 
   const updateJournalEntry = (entryId: string, updates: Partial<JournalEntry>) => {
@@ -1363,6 +1457,9 @@ export const AppProvider = ({ children }: AppProviderProps) => {
 
   const deleteJournalEntry = (entryId: string) => {
     setJournalEntries(prev => prev.filter(entry => entry.id !== entryId));
+    
+    // Update quiz availability
+    checkQuizAvailability();
   };
 
   // Sleep tracking functions
@@ -1532,25 +1629,25 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     const dailyAverageSocial = socialMediaData.length > 0 ? totalSocialMinutes / socialMediaData.length : 0;
     
     // Calculate intentfulness score
-    const intentfulResponses = intentPromptResponses.filter(
+    const recentIntentPrompts = intentPromptResponses.slice(-20);
+    const intentfulResponses = recentIntentPrompts.filter(
       response => response.reason !== 'skipped' && response.reason !== 'bored'
     );
-    const intentfulnessScore = intentPromptResponses.length > 0
-      ? (intentfulResponses.length / intentPromptResponses.length) * 100
+    
+    const intentfulnessScore = recentIntentPrompts.length > 0
+      ? intentfulResponses.length / recentIntentPrompts.length
       : 0;
     
     // Calculate most common reasons
     const reasonCounts: Record<string, number> = {};
     intentPromptResponses.forEach(response => {
-      if (!reasonCounts[response.reason]) {
-        reasonCounts[response.reason] = 0;
-      }
-      reasonCounts[response.reason]++;
+      reasonCounts[response.reason] = (reasonCounts[response.reason] || 0) + 1;
     });
     
     const mostCommonReasons = Object.entries(reasonCounts)
       .map(([reason, count]) => ({ reason, count }))
-      .sort((a, b) => b.count - a.count);
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3);
     
     return {
       habits: {
@@ -1586,7 +1683,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         weeklyTrend: socialMediaData.map(usage => ({ date: usage.date, minutes: usage.totalMinutes })),
         appBreakdown: [],
         streakDaysUnderAverage: 0,
-        intentfulnessScore,
+        intentfulnessScore: Math.round(intentfulnessScore * 100),
         mostCommonReasons,
       },
       productivity: {
@@ -1638,14 +1735,6 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     setAppUsageSessions(prev => [...prev, newSession]);
   };
 
-  const updateAppUsageSession = (sessionId: string, updates: Partial<AppUsageSession>) => {
-    setAppUsageSessions(prev => prev.map(session =>
-      session.id === sessionId
-        ? { ...session, ...updates }
-        : session
-    ));
-  };
-
   const addIntentPromptResponse = (data: Omit<IntentPromptResponse, 'id' | 'createdAt'>) => {
     const newResponse: IntentPromptResponse = {
       id: generateId(),
@@ -1664,11 +1753,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       updatedAt: new Date().toISOString(),
     };
     
-    setSocialMediaReflections(prev => {
-      // Remove existing reflection for the same date
-      const filtered = prev.filter(reflection => reflection.date !== data.date);
-      return [...filtered, newReflection];
-    });
+    setSocialMediaReflections(prev => [...prev, newReflection]);
   };
 
   const updateSocialMediaReflection = (reflectionId: string, updates: Partial<SocialMediaReflection>) => {
@@ -1725,56 +1810,16 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     setDigitalWellnessGoals(prev => prev.filter(goal => goal.id !== goalId));
   };
 
-  // Social media tracking service functions
-  const startSocialMediaTracking = async (): Promise<void> => {
-    if (Platform.OS !== 'android') {
-      console.log('Social media tracking only available on Android');
-      return;
-    }
-    
-    try {
-      await trackingService.startTracking();
+  const updateUserProfile = (updates: Partial<UserProfile>) => {
+    setUserProfile(prev => {
+      if (!prev) return null;
       
-      // Update user preferences
-      if (userProfile) {
-        updateUserProfile({
-          preferences: {
-            ...userProfile.preferences,
-            socialMediaTracking: true,
-          }
-        });
-      }
-    } catch (error) {
-      console.error('Failed to start social media tracking:', error);
-      throw error;
-    }
-  };
-
-  const stopSocialMediaTracking = (): void => {
-    trackingService.stopTracking();
-    
-    // Update user preferences
-    if (userProfile) {
-      updateUserProfile({
-        preferences: {
-          ...userProfile.preferences,
-          socialMediaTracking: false,
-        }
-      });
-    }
-  };
-
-  const checkForIntentPrompt = async (packageName: string): Promise<boolean> => {
-    if (Platform.OS !== 'android' || !userProfile?.preferences.intentPrompts) {
-      return false;
-    }
-    
-    const app = trackedApps.find(app => app.packageName === packageName);
-    if (!app || !app.intentPromptEnabled) {
-      return false;
-    }
-    
-    return true;
+      return {
+        ...prev,
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      };
+    });
   };
 
   const awardXP = (amount: number, reason: string) => {
@@ -1861,18 +1906,6 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     AsyncStorage.setItem(`dailyChallenge_${dailyChallenge.date}`, JSON.stringify(updatedChallenge));
   };
 
-  const updateUserProfile = (updates: Partial<UserProfile>) => {
-    setUserProfile(prev => {
-      if (!prev) return null;
-      
-      return {
-        ...prev,
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      };
-    });
-  };
-
   return (
     <AppContext.Provider
       value={{
@@ -1896,12 +1929,18 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         productiveActivities,
         activityEntries,
         dashboardMetrics,
+        
+        // Social Media Wellness
         trackedApps,
         appUsageSessions,
         intentPromptResponses,
         socialMediaReflections,
         usageAlerts,
         digitalWellnessGoals,
+        
+        // Quiz availability
+        canTakeMorningQuiz,
+        canTakeEveningQuiz,
         
         addGoal,
         updateGoal,
@@ -1956,12 +1995,12 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         toggleMetricPin,
         getAnalytics,
         
+        // Social Media Wellness
         addTrackedApp,
         updateTrackedApp,
         removeTrackedApp,
         
         addAppUsageSession,
-        updateAppUsageSession,
         
         addIntentPromptResponse,
         
@@ -1976,13 +2015,12 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         updateDigitalWellnessGoal,
         removeDigitalWellnessGoal,
         
-        startSocialMediaTracking,
-        stopSocialMediaTracking,
-        checkForIntentPrompt,
+        updateUserProfile,
+        
+        scheduleQuizReminders,
         
         awardXP,
         completeDailyChallenge,
-        updateUserProfile,
       }}
     >
       {children}

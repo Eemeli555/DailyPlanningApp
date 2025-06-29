@@ -1,4 +1,4 @@
-import { useContext, useState } from 'react';
+import { useContext, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Plus, Calendar, Sunrise, Sunset, CreditCard as Edit, BookOpen, Moon, Clock, Sun, Brain, Heart, Zap, Target, Activity, Droplets } from 'lucide-react-native';
@@ -11,6 +11,7 @@ import { COLORS } from '@/constants/theme';
 import { MOOD_LABELS } from '@/constants/gamification';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import MoodChart from '@/components/MoodChart';
+import QuizReminderCard from '@/components/QuizReminderCard';
 
 const { width: screenWidth } = Dimensions.get('window');
 const isSmallScreen = screenWidth < 375;
@@ -18,7 +19,15 @@ const isSmallScreen = screenWidth < 375;
 export default function JournalScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { journalEntries, userProfile, sleepData, socialMediaData } = useContext(AppContext);
+  const { 
+    journalEntries, 
+    userProfile, 
+    sleepData, 
+    socialMediaData, 
+    canTakeMorningQuiz,
+    canTakeEveningQuiz,
+    scheduleQuizReminders
+  } = useContext(AppContext);
   
   const today = new Date().toISOString().split('T')[0];
   const todayMorningEntry = journalEntries.find(entry => entry.date === today && entry.type === 'morning');
@@ -31,6 +40,27 @@ export default function JournalScreen() {
     .slice(0, 7);
   
   const journalStreak = calculateJournalStreak();
+  
+  // Check if it's morning time (6 AM - 10 AM)
+  const isMorningTime = () => {
+    const now = new Date();
+    const hour = now.getHours();
+    return hour >= 6 && hour <= 10;
+  };
+
+  // Check if it's evening time (7 PM - 10 PM)
+  const isEveningTime = () => {
+    const now = new Date();
+    const hour = now.getHours();
+    return hour >= 19 && hour <= 22;
+  };
+
+  // Schedule reminders when component mounts
+  useEffect(() => {
+    if (userProfile?.preferences.notifications) {
+      scheduleQuizReminders();
+    }
+  }, [userProfile?.preferences.notifications]);
   
   function calculateJournalStreak(): number {
     const entries = journalEntries
@@ -67,28 +97,6 @@ export default function JournalScreen() {
   const getMoodLabel = (mood: number) => {
     const moodData = MOOD_LABELS.find(m => m.value === mood);
     return moodData?.label || 'Okay';
-  };
-
-  // Check if it's morning time (6 AM - 10 AM)
-  const isMorningTime = () => {
-    const now = new Date();
-    const hour = now.getHours();
-    return hour >= 6 && hour <= 10;
-  };
-
-  // Check if it's evening time (7 PM - 10 PM)
-  const isEveningTime = () => {
-    const now = new Date();
-    const hour = now.getHours();
-    return hour >= 19 && hour <= 22;
-  };
-
-  const shouldShowMorningQuiz = () => {
-    return isMorningTime() && !todayMorningEntry;
-  };
-
-  const shouldShowEveningQuiz = () => {
-    return isEveningTime() && !todayEveningEntry;
   };
 
   return (
@@ -136,7 +144,7 @@ export default function JournalScreen() {
                 </Text>
               )}
             </TouchableOpacity>
-          ) : shouldShowMorningQuiz() ? (
+          ) : canTakeMorningQuiz ? (
             <TouchableOpacity 
               style={[styles.promptCard, isSmallScreen && styles.promptCardSmall]}
               onPress={() => router.push({
@@ -182,7 +190,7 @@ export default function JournalScreen() {
                 </Text>
               )}
             </TouchableOpacity>
-          ) : shouldShowEveningQuiz() ? (
+          ) : canTakeEveningQuiz ? (
             <TouchableOpacity 
               style={[styles.promptCard, isSmallScreen && styles.promptCardSmall]}
               onPress={() => router.push({
@@ -279,6 +287,33 @@ export default function JournalScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: 100 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Quiz Reminders */}
+        {(!todayMorningEntry || !todayEveningEntry) && (
+          <View style={styles.remindersSection}>
+            {!todayMorningEntry && canTakeMorningQuiz && (
+              <QuizReminderCard
+                type="morning"
+                onPress={() => router.push({
+                  pathname: '/modals/morning-quiz',
+                  params: { date: today }
+                })}
+                isRecommended={isMorningTime()}
+              />
+            )}
+            
+            {!todayEveningEntry && canTakeEveningQuiz && (
+              <QuizReminderCard
+                type="evening"
+                onPress={() => router.push({
+                  pathname: '/modals/evening-quiz',
+                  params: { date: today }
+                })}
+                isRecommended={isEveningTime()}
+              />
+            )}
+          </View>
+        )}
+
         {/* Mood Chart */}
         {journalEntries.length > 0 && (
           <View style={styles.chartSection}>
@@ -771,6 +806,11 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingBottom: 100,
+  },
+  remindersSection: {
+    marginHorizontal: isSmallScreen ? 16 : 20,
+    marginTop: 16,
+    marginBottom: 8,
   },
   chartSection: {
     marginHorizontal: isSmallScreen ? 16 : 20,

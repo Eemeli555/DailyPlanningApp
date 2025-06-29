@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { format } from 'date-fns';
 import { ChevronLeft, ChevronRight, Sun, Star, Heart, CircleCheck as CheckCircle, X, Plus, Minus } from 'lucide-react-native';
@@ -30,7 +30,8 @@ export default function MorningQuizScreen() {
     journalEntries,
     addGoal,
     awardXP,
-    addSleepData
+    addSleepData,
+    canTakeMorningQuiz
   } = useContext(AppContext);
 
   const quizDate = date || new Date().toISOString().split('T')[0];
@@ -45,6 +46,17 @@ export default function MorningQuizScreen() {
     dailyGoals: existingEntry?.dailyGoals || ['', '', ''],
     morningGratitude: existingEntry?.morningGratitude || '',
   });
+
+  // Check if user can take the quiz
+  useEffect(() => {
+    if (!canTakeMorningQuiz && !existingEntry) {
+      Alert.alert(
+        "Morning Quiz Already Completed",
+        "You've already completed your morning planning for today.",
+        [{ text: "OK", onPress: () => router.back() }]
+      );
+    }
+  }, [canTakeMorningQuiz, existingEntry, router]);
 
   const updateResponse = (key: keyof MorningQuizResponse, value: any) => {
     setResponses(prev => ({ ...prev, [key]: value }));
@@ -83,8 +95,6 @@ export default function MorningQuizScreen() {
 
   const canProceed = () => {
     switch (currentStep) {
-      case 3: // Morning feeling - optional
-        return true;
       case 4: // Main focus - required
         return responses.mainFocus.trim().length > 0;
       case 5: // Daily goals - at least one required
@@ -322,6 +332,11 @@ export default function MorningQuizScreen() {
         return null;
     }
   };
+
+  // If user can't take the quiz and there's no existing entry, don't render anything
+  if (!canTakeMorningQuiz && !existingEntry) {
+    return null;
+  }
 
   return (
     <View style={styles.container}>
