@@ -47,13 +47,131 @@ const CreateChoiceModal = ({ visible, onClose }: CreateChoiceModalProps) => {
       route: '/modals/add-habit',
     },
     {
-      iI'll implement the future day planning feature and improve the scheduling functionality. This will include:
+      id: 'workout',
+      title: 'Workout',
+      description: 'Plan a workout session',
+      icon: Dumbbell,
+      color: COLORS.success[600],
+      backgroundColor: COLORS.success[50],
+      route: '/modals/add-workout',
+    },
+  ];
 
-1. **Future Day Planning**: Allow users to add tasks and activities to future dates
-2. **Enhanced Scheduling**: Improved scheduling modal with time selection during task creation
-3. **Better Calendar Integration**: Enhanced calendar view for planning future days
-4. **Automatic Habit Addition**: Habits will be automatically added to future days
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={styles.overlay}>
+        <Animated.View 
+          entering={FadeIn.duration(200)}
+          style={styles.container}
+        >
+          <View style={styles.header}>
+            <Text style={styles.title}>What would you like to create?</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <X size={24} color={COLORS.gray[600]} />
+            </TouchableOpacity>
+          </View>
 
-Let me start by creating the enhanced scheduling components:
+          <View style={styles.choicesContainer}>
+            {choices.map((choice, index) => (
+              <Animated.View
+                key={choice.id}
+                entering={FadeInDown.delay(index * 100).duration(300)}
+              >
+                <TouchableOpacity
+                  style={[styles.choiceItem, { backgroundColor: choice.backgroundColor }]}
+                  onPress={() => handleChoice(choice.route)}
+                >
+                  <View style={[styles.iconContainer, { backgroundColor: choice.color }]}>
+                    <choice.icon size={24} color="white" />
+                  </View>
+                  <View style={styles.choiceContent}>
+                    <Text style={styles.choiceTitle}>{choice.title}</Text>
+                    <Text style={styles.choiceDescription}>{choice.description}</Text>
+                  </View>
+                  <Plus size={20} color={COLORS.gray[400]} />
+                </TouchableOpacity>
+              </Animated.View>
+            ))}
+          </View>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+};
 
-<boltArtifact id="future-day-planning" title="Future Day Planning and Enhanced Scheduling">
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  container: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: COLORS.gray[900],
+    flex: 1,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  choicesContainer: {
+    gap: 12,
+  },
+  choiceItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    gap: 16,
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  choiceContent: {
+    flex: 1,
+  },
+  choiceTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.gray[900],
+    marginBottom: 2,
+  },
+  choiceDescription: {
+    fontSize: 14,
+    color: COLORS.gray[600],
+  },
+});
+
+export default CreateChoiceModal;
