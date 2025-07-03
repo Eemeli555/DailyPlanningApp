@@ -11,7 +11,7 @@ import { HABIT_CATEGORIES, GOAL_CATEGORIES } from '@/constants/gamification';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import HabitCard from '@/components/HabitCard';
 import LongTermGoalCard from '@/components/LongTermGoalCard';
-import GoalItem from '@/components/GoalItem';
+import TaskItem from '@/components/TaskItem';
 import ProductiveActivityCard from '@/components/ProductiveActivityCard';
 import CreateChoiceModal from '@/components/CreateChoiceModal';
 import FutureDayPlannerModal from '@/components/FutureDayPlannerModal';
@@ -149,7 +149,7 @@ export default function PlanningScreen() {
             {goalsLibrary.length}
           </Text>
           <Text style={[styles.statLabel, isSmallScreen && styles.statLabelSmall]}>
-            Daily Goals
+            Daily Tasks
           </Text>
         </View>
       </View>
@@ -279,22 +279,22 @@ export default function PlanningScreen() {
           ))}
         </View>
 
-        {/* Goals Preview */}
+        {/* Tasks & Goals Preview */}
         <View style={styles.previewCard}>
           <View style={styles.previewHeader}>
-            <Text style={styles.previewTitle}>Recent Goals</Text>
+            <Text style={styles.previewTitle}>Recent Tasks & Goals</Text>
             <TouchableOpacity onPress={() => setCurrentView('goals')}>
               <Text style={styles.viewAllText}>View All</Text>
             </TouchableOpacity>
           </View>
           
-          {/* Daily Goals Preview */}
+          {/* Daily Tasks Preview */}
           {goalsLibrary.slice(0, 2).map((goal) => (
             <View key={goal.id} style={styles.miniGoalItem}>
               <View style={[styles.goalDot, { backgroundColor: COLORS.primary[500] }]} />
               <View style={styles.miniGoalContent}>
                 <Text style={styles.miniGoalText}>{goal.title}</Text>
-                <Text style={styles.miniGoalType}>Daily Goal</Text>
+                <Text style={styles.miniGoalType}>Daily Task</Text>
               </View>
             </View>
           ))}
@@ -500,9 +500,9 @@ export default function PlanningScreen() {
     const renderGoalViewSelector = () => (
       <View style={styles.goalViewSelector}>
         {[
-          { id: 'all', label: 'All Goals' },
-          { id: 'daily', label: 'Daily Goals' },
-          { id: 'longterm', label: 'Long-term' },
+          { id: 'all', label: 'All' },
+          { id: 'daily', label: 'Daily Tasks' },
+          { id: 'longterm', label: 'Long-term Goals' },
         ].map(({ id, label }) => (
           <TouchableOpacity
             key={id}
@@ -576,12 +576,12 @@ export default function PlanningScreen() {
           contentContainerStyle={[styles.content, { paddingBottom: 100 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Daily Goals Section */}
+          {/* Daily Tasks Section */}
           {(goalView === 'all' || goalView === 'daily') && (
             <>
               {goalView === 'all' && filteredDailyGoals.length > 0 && (
                 <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Daily Goals</Text>
+                  <Text style={styles.sectionTitle}>Daily Tasks</Text>
                   <TouchableOpacity onPress={() => setGoalView('daily')}>
                     <Text style={styles.viewAllText}>View All</Text>
                   </TouchableOpacity>
@@ -591,10 +591,10 @@ export default function PlanningScreen() {
               {goalView === 'daily' && (
                 <View style={styles.sectionHeader}>
                   <Text style={styles.sectionTitle}>
-                    Daily Goals ({filteredDailyGoals.length})
+                    Daily Tasks ({filteredDailyGoals.length})
                   </Text>
                   <Text style={styles.sectionSubtitle}>
-                    Goals for your daily planning
+                    Tasks for your daily planning
                   </Text>
                 </View>
               )}
@@ -602,9 +602,9 @@ export default function PlanningScreen() {
               {filteredDailyGoals.length === 0 && goalView === 'daily' ? (
                 <View style={styles.emptyState}>
                   <ListTodo size={48} color={COLORS.neutral[400]} />
-                  <Text style={styles.emptyStateText}>No daily goals yet</Text>
+                  <Text style={styles.emptyStateText}>No daily tasks yet</Text>
                   <Text style={styles.emptyStateSubtext}>
-                    Create daily goals to organize your day-to-day tasks
+                    Create daily tasks to organize your day-to-day activities
                   </Text>
                 </View>
               ) : (
@@ -614,7 +614,7 @@ export default function PlanningScreen() {
                     entering={FadeInDown.delay(index * 50).springify()}
                     style={styles.goalCard}
                   >
-                    <GoalItem
+                    <TaskItem
                       goal={goal}
                       onToggleComplete={(goalId) => {
                         if (goal.completed) {
@@ -702,9 +702,9 @@ export default function PlanningScreen() {
           {goalView === 'all' && filteredDailyGoals.length === 0 && filteredLongTermGoals.length === 0 && (
             <View style={styles.emptyState}>
               <Target size={48} color={COLORS.neutral[400]} />
-              <Text style={styles.emptyStateText}>No goals yet</Text>
+              <Text style={styles.emptyStateText}>No tasks or goals yet</Text>
               <Text style={styles.emptyStateSubtext}>
-                Start by creating your first goal to organize your aspirations
+                Start by creating your first task or goal to organize your aspirations
               </Text>
             </View>
           )}
@@ -778,7 +778,7 @@ export default function PlanningScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={styles.title}>Planning</Text>
-        <Text style={styles.subtitle}>Organize your goals, habits & routines</Text>
+        <Text style={styles.subtitle}>Organize your tasks, goals, habits & routines</Text>
         
         {/* View Selector */}
         <View style={styles.viewSelector}>

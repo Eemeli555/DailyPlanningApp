@@ -8,7 +8,7 @@ import Button from '@/components/Button';
 const { width: screenWidth } = Dimensions.get('window');
 const isSmallScreen = screenWidth < 375;
 
-export default function AddGoalScreen() {
+export default function AddTaskScreen() {
   const router = useRouter();
   const { addGoal } = useContext(AppContext);
   
@@ -41,10 +41,10 @@ export default function AddGoalScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.label}>Goal Title *</Text>
+        <Text style={styles.label}>Task Title *</Text>
         <TextInput
           style={styles.input}
-          placeholder="Enter goal title"
+          placeholder="Enter task title"
           placeholderTextColor={COLORS.neutral[400]}
           value={title}
           onChangeText={setTitle}
@@ -54,7 +54,7 @@ export default function AddGoalScreen() {
         <Text style={styles.label}>Description (Optional)</Text>
         <TextInput
           style={[styles.input, styles.textArea]}
-          placeholder="Enter goal description"
+          placeholder="Enter task description"
           placeholderTextColor={COLORS.neutral[400]}
           value={description}
           onChangeText={setDescription}
@@ -78,7 +78,7 @@ export default function AddGoalScreen() {
         
         <View style={styles.infoContainer}>
           <Text style={styles.infoText}>
-            Automatic goals will be added to every day's plan without requiring manual selection.
+            Automatic tasks will be added to every day's plan without requiring manual selection.
           </Text>
         </View>
       </ScrollView>
@@ -91,7 +91,7 @@ export default function AddGoalScreen() {
           textStyle={styles.cancelButtonText}
         />
         <Button 
-          title="Save Goal" 
+          title="Save Task" 
           onPress={handleSave} 
           disabled={!title.trim()}
           style={[styles.saveButton, !title.trim() && styles.disabledButton]}

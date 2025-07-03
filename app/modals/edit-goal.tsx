@@ -5,7 +5,7 @@ import { COLORS } from '@/constants/theme';
 import { AppContext } from '@/contexts/AppContext';
 import Button from '@/components/Button';
 
-export default function EditGoalScreen() {
+export default function EditTaskScreen() {
   const router = useRouter();
   const { goalId } = useLocalSearchParams<{ goalId: string }>();
   const { getGoalById, updateGoal } = useContext(AppContext);
@@ -44,10 +44,10 @@ export default function EditGoalScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
     >
       <ScrollView style={styles.scrollContent} contentContainerStyle={styles.content}>
-        <Text style={styles.label}>Goal Title *</Text>
+        <Text style={styles.label}>Task Title *</Text>
         <TextInput
           style={styles.input}
-          placeholder="Enter goal title"
+          placeholder="Enter task title"
           placeholderTextColor={COLORS.neutral[400]}
           value={title}
           onChangeText={setTitle}
@@ -57,7 +57,7 @@ export default function EditGoalScreen() {
         <Text style={styles.label}>Description (Optional)</Text>
         <TextInput
           style={[styles.input, styles.textArea]}
-          placeholder="Enter goal description"
+          placeholder="Enter task description"
           placeholderTextColor={COLORS.neutral[400]}
           value={description}
           onChangeText={setDescription}
@@ -80,7 +80,7 @@ export default function EditGoalScreen() {
         
         <View style={styles.infoContainer}>
           <Text style={styles.infoText}>
-            Automatic goals will be added to every day's plan without requiring manual selection.
+            Automatic tasks will be added to every day's plan without requiring manual selection.
           </Text>
         </View>
       </ScrollView>

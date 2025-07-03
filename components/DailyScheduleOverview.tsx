@@ -4,7 +4,7 @@ import { format, set, isWithinInterval, isBefore, isAfter } from 'date-fns';
 import { Clock, CircleCheck as CheckCircle } from 'lucide-react-native';
 import { COLORS } from '@/constants/theme';
 import { Goal } from '@/types';
-import GoalDetailModal from './GoalDetailModal';
+import TaskDetailModal from './TaskDetailModal';
 
 interface DailyScheduleOverviewProps {
   goals: Goal[];
@@ -204,7 +204,7 @@ const DailyScheduleOverview = ({
           </View>
         )}
 
-        {/* Unscheduled Goals - Compact List */}
+        {/* Unscheduled Tasks - Compact List */}
         {unscheduledGoals.length > 0 && (
           <View style={styles.unscheduledSection}>
             <Text style={styles.sectionTitle}>
@@ -240,8 +240,8 @@ const DailyScheduleOverview = ({
         )}
       </View>
 
-      {/* Goal Detail Modal */}
-      <GoalDetailModal
+      {/* Task Detail Modal */}
+      <TaskDetailModal
         visible={showDetailModal}
         goal={selectedGoal}
         onClose={handleCloseModal}

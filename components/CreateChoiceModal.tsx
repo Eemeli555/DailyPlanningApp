@@ -20,9 +20,9 @@ const CreateChoiceModal = ({ visible, onClose }: CreateChoiceModalProps) => {
 
   const choices = [
     {
-      id: 'daily-goal',
-      title: 'Daily Goal',
-      description: 'Create a simple daily task or goal',
+      id: 'daily-task',
+      title: 'Daily Task',
+      description: 'Create a simple daily task',
       icon: ListTodo,
       color: COLORS.primary[600],
       backgroundColor: COLORS.primary[50],

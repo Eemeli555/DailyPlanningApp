@@ -8,7 +8,6 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { AppContext } from '@/contexts/AppContext';
 import { COLORS } from '@/constants/theme';
-import GoalItem from '@/components/GoalItem';
 import { Goal } from '@/types';
 import { getCompletionColorForProgress } from '@/utils/helpers';
 import DailyPlannerTable from '@/components/DailyPlannerTable';
@@ -275,11 +274,11 @@ export default function CalendarScreen() {
         >
           {/* Daily Summary Cards */}
           <View style={[styles.summaryCards, isSmallScreen && styles.summaryCardsSmall]}>
-            {/* Goals Summary - Only count real goals, not habits */}
+            {/* Tasks Summary - Only count real tasks, not habits */}
             {selectedDayData.plan && (
               <View style={[styles.summaryCard, isSmallScreen && styles.summaryCardSmall]}>
                 <Text style={[styles.summaryCardTitle, isSmallScreen && styles.summaryCardTitleSmall]}>
-                  Goals
+                  Tasks
                 </Text>
                 <Text style={[styles.summaryCardValue, isSmallScreen && styles.summaryCardValueSmall]}>
                   {selectedDayData.plan.goals.filter(g => !g.id.startsWith('habit-') && g.completed).length}/
@@ -337,7 +336,7 @@ export default function CalendarScreen() {
             )}
           </View>
 
-          {/* Scheduled Goals - Clean Block Format */}
+          {/* Scheduled Tasks - Clean Block Format */}
           {scheduleBlocks.length > 0 && (
             <View style={styles.scheduledSection}>
               <Text style={styles.sectionTitle}>Scheduled Activities</Text>
@@ -401,11 +400,11 @@ export default function CalendarScreen() {
             </View>
           )}
 
-          {/* Unscheduled Goals */}
+          {/* Unscheduled Tasks */}
           {unscheduledGoals.length > 0 && (
             <View style={styles.unscheduledSection}>
               <Text style={styles.sectionTitle}>
-                Unscheduled Goals ({unscheduledGoals.length})
+                Unscheduled Tasks ({unscheduledGoals.length})
               </Text>
               
               <View style={styles.unscheduledList}>
@@ -1103,7 +1102,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[700],
     lineHeight: 20,
-    marginBottom: 8,
   },
   journalFocus: {
     fontSize: 13,

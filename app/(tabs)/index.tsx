@@ -10,7 +10,7 @@ import { AppContext } from '@/contexts/AppContext';
 import { Goal } from '@/types';
 import { COLORS } from '@/constants/theme';
 import Button from '@/components/Button';
-import GoalItem from '@/components/GoalItem';
+import TaskItem from '@/components/TaskItem';
 import ProgressBar from '@/components/ProgressBar';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import DailyScheduleOverview from '@/components/DailyScheduleOverview';
@@ -68,7 +68,7 @@ export default function TodayScreen() {
   const todayFormatted = format(today, 'EEEE, MMMM d');
   const { label, color } = getCompletionStatus(progressToday);
 
-  // Separate habits from regular goals
+  // Separate habits from regular tasks
   const habitGoals = todaysGoals.filter(goal => goal.id.startsWith('habit-'));
   const regularGoals = todaysGoals.filter(goal => !goal.id.startsWith('habit-'));
 
@@ -189,6 +189,7 @@ export default function TodayScreen() {
     const now = new Date();
     return regularGoals.find(goal => {
       if (!goal.scheduledTime) return false;
+      
       const start = new Date(goal.scheduledTime.start);
       const end = new Date(goal.scheduledTime.end);
       return now >= start && now <= end;
@@ -226,7 +227,7 @@ export default function TodayScreen() {
         {/* Progress Overview */}
         <View style={[styles.progressSection, isSmallScreen && styles.progressSectionSmall]}>
           <View style={[styles.progressCard, isSmallScreen && styles.progressCardSmall]}>
-            <Text style={styles.progressTitle}>Goals</Text>
+            <Text style={styles.progressTitle}>Tasks</Text>
             <Text style={[styles.progressNumber, isSmallScreen && styles.progressNumberSmall]}>
               {Math.round(progressToday * 100)}%
             </Text>
@@ -375,7 +376,7 @@ export default function TodayScreen() {
             >
               <Target size={isSmallScreen ? 18 : 20} color={COLORS.primary[600]} />
               <Text style={[styles.quickActionText, isSmallScreen && styles.quickActionTextSmall]}>
-                Add Goal
+                Add Task
               </Text>
             </TouchableOpacity>
             
@@ -452,11 +453,11 @@ export default function TodayScreen() {
           </View>
         )}
 
-        {/* Unscheduled Goals - Compact List */}
+        {/* Unscheduled Tasks - Compact List */}
         {regularGoals.filter(goal => !goal.scheduledTime).length > 0 && (
           <View style={styles.unscheduledSection}>
             <Text style={styles.sectionTitle}>
-              Unscheduled Goals ({regularGoals.filter(goal => !goal.scheduledTime).length})
+              Unscheduled Tasks ({regularGoals.filter(goal => !goal.scheduledTime).length})
             </Text>
             
             <View style={styles.unscheduledGoalsContainer}>
@@ -466,7 +467,7 @@ export default function TodayScreen() {
                   entering={FadeInUp.delay(index * 50).springify()}
                   style={styles.unscheduledGoal}
                 >
-                  <GoalItem 
+                  <TaskItem 
                     goal={goal}
                     onToggleComplete={(goalId) => {
                       if (goal.completed) {
