@@ -1,7 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Alert } from 'react-native';
 import { format, set, addMinutes, isSameDay, startOfDay, endOfDay } from 'date-fns';
-import { X, Clock, Calendar, AlertCircle } from 'lucide-react-native';
+import { X, Clock, Calendar, CircleAlert as AlertCircle } from 'lucide-react-native';
 import { COLORS } from '@/constants/theme';
 import { Goal } from '@/types';
 import { AppContext } from '@/contexts/AppContext';
