@@ -49,11 +49,11 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" options={{ title: 'Not Found' }} />
         <Stack.Screen 
-          name="modals/add-goal" 
+          name="modals/add-task" 
           options={{ 
             presentation: 'modal',
             headerShown: true,
-            title: 'Add New Goal',
+            title: 'Add New Task',
             headerTitleStyle: {
               fontFamily: 'Inter-SemiBold',
             },
@@ -64,7 +64,7 @@ export default function RootLayout() {
           options={{ 
             presentation: 'modal',
             headerShown: true,
-            title: 'Edit Goal',
+            title: 'Edit Task',
             headerTitleStyle: {
               fontFamily: 'Inter-SemiBold',
             },

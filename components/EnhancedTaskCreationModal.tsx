@@ -1,19 +1,23 @@
-import { useContext, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, ScrollView, Switch, TouchableOpacity, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { format, addDays } from 'date-fns';
 import { Calendar, Clock, Plus } from 'lucide-react-native';
 import { COLORS } from '@/constants/theme';
 import { AppContext } from '@/contexts/AppContext';
-import Button from '@/components/Button';
-import ScheduleTimeSelector from '@/components/ScheduleTimeSelector';
+import Button from './Button';
+import ScheduleTimeSelector from './ScheduleTimeSelector';
 
 const { width: screenWidth } = Dimensions.get('window');
 const isSmallScreen = screenWidth < 375;
 
-export default function AddGoalScreen() {
+interface EnhancedTaskCreationModalProps {
+  onTaskCreated?: () => void;
+}
+
+export default function EnhancedTaskCreationModal({ onTaskCreated }: EnhancedTaskCreationModalProps) {
   const router = useRouter();
-  const { addGoal, addGoalToDate } = useContext(AppContext);
+  const { addGoal, addGoalToDate } = React.useContext(AppContext);
   
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -44,6 +48,7 @@ export default function AddGoalScreen() {
       addGoalToDate(goalId, selectedDate, scheduleTime || undefined);
     }
     
+    onTaskCreated?.();
     router.back();
   };
 

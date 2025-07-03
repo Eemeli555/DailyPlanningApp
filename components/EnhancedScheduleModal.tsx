@@ -1,18 +1,17 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView } from 'react-native';
 import { format, set, addMinutes } from 'date-fns';
-import { X, Clock, Calendar } from 'lucide-react-native';
+import { X, Clock, Calendar, Target, Activity } from 'lucide-react-native';
 import { COLORS } from '@/constants/theme';
-import { Goal } from '@/types';
 import Button from './Button';
 
-interface EnhancedScheduleGoalModalProps {
+interface EnhancedScheduleModalProps {
   visible: boolean;
-  goal: Goal | null;
-  onClose: () => void;
-  onSchedule: (goalId: string, schedule?: { start: string; end: string }) => void;
+  item: any;
+  itemType?: 'task' | 'activity';
   selectedDate: Date;
-  allowUnscheduled?: boolean;
+  onClose: () => void;
+  onSchedule: (schedule?: { start: string; end: string }) => void;
 }
 
 // Generate time slots from 6 AM to 10 PM in 30-minute intervals
@@ -25,17 +24,21 @@ const TIME_SLOTS = Array.from({ length: 32 }, (_, i) => {
 // Duration options in minutes
 const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120, 150, 180, 240, 300];
 
-const EnhancedScheduleGoalModal = ({ 
+const EnhancedScheduleModal = ({ 
   visible, 
-  goal, 
-  onClose, 
-  onSchedule, 
+  item, 
+  itemType,
   selectedDate,
-  allowUnscheduled = false
-}: EnhancedScheduleGoalModalProps) => {
+  onClose, 
+  onSchedule 
+}: EnhancedScheduleModalProps) => {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<{ hour: number; minutes: number } | null>(null);
-  const [selectedDuration, setSelectedDuration] = useState(60); // Default 1 hour
-  const [scheduleMode, setScheduleMode] = useState<'scheduled' | 'unscheduled'>('scheduled');
+  const [selectedDuration, setSelectedDuration] = useState(
+    itemType === 'activity' && item?.estimatedDuration 
+      ? item.estimatedDuration 
+      : 60
+  );
+  const [scheduleOption, setScheduleOption] = useState<'now' | 'later' | 'unscheduled'>('unscheduled');
 
   const formatTimeSlot = (slot: { hour: number; minutes: number }) => {
     return format(
@@ -59,26 +62,26 @@ const EnhancedScheduleGoalModal = ({
   };
 
   const handleSchedule = () => {
-    if (!goal) return;
+    if (!item) return;
 
-    if (scheduleMode === 'unscheduled') {
-      onSchedule(goal.id); // No schedule
+    if (scheduleOption === 'unscheduled') {
+      onSchedule();
       return;
     }
 
-    if (!selectedTimeSlot) return;
+    if (scheduleOption === 'later' && selectedTimeSlot) {
+      const startTime = set(selectedDate, {
+        hours: selectedTimeSlot.hour,
+        minutes: selectedTimeSlot.minutes,
+      });
 
-    const startTime = set(selectedDate, {
-      hours: selectedTimeSlot.hour,
-      minutes: selectedTimeSlot.minutes,
-    });
+      const endTime = addMinutes(startTime, selectedDuration);
 
-    const endTime = addMinutes(startTime, selectedDuration);
-
-    onSchedule(goal.id, {
-      start: startTime.toISOString(),
-      end: endTime.toISOString(),
-    });
+      onSchedule({
+        start: startTime.toISOString(),
+        end: endTime.toISOString(),
+      });
+    }
   };
 
   const getEndTime = () => {
@@ -93,7 +96,13 @@ const EnhancedScheduleGoalModal = ({
     return format(endTime, 'HH:mm');
   };
 
-  if (!goal) return null;
+  const canProceed = () => {
+    if (scheduleOption === 'unscheduled') return true;
+    if (scheduleOption === 'later') return selectedTimeSlot !== null;
+    return false;
+  };
+
+  if (!item) return null;
 
   return (
     <Modal
@@ -104,61 +113,105 @@ const EnhancedScheduleGoalModal = ({
     >
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Schedule Task</Text>
+          <Text style={styles.title}>Schedule {itemType === 'activity' ? 'Activity' : 'Task'}</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <X size={24} color={COLORS.neutral[600]} />
           </TouchableOpacity>
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.goalInfo}>
-            <Text style={styles.goalTitle}>{goal.title}</Text>
-            {goal.description && (
-              <Text style={styles.goalDescription}>{goal.description}</Text>
+          <View style={styles.itemInfo}>
+            <View style={styles.itemHeader}>
+              {itemType === 'activity' ? (
+                <Activity size={24} color={COLORS.accent[600]} />
+              ) : (
+                <Target size={24} color={COLORS.primary[600]} />
+              )}
+              <Text style={styles.itemTitle}>
+                {itemType === 'activity' ? item.name : item.title}
+              </Text>
+            </View>
+            {item.description && (
+              <Text style={styles.itemDescription}>{item.description}</Text>
             )}
             <Text style={styles.dateText}>
               {format(selectedDate, 'EEEE, MMMM d, yyyy')}
             </Text>
           </View>
 
-          {allowUnscheduled && (
-            <View style={styles.modeSelector}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>When would you like to do this?</Text>
+            
+            <View style={styles.scheduleOptions}>
               <TouchableOpacity
                 style={[
-                  styles.modeButton,
-                  scheduleMode === 'scheduled' && styles.selectedMode
+                  styles.scheduleOption,
+                  scheduleOption === 'unscheduled' && styles.selectedOption
                 ]}
-                onPress={() => setScheduleMode('scheduled')}
+                onPress={() => setScheduleOption('unscheduled')}
               >
-                <Clock size={16} color={scheduleMode === 'scheduled' ? COLORS.white : COLORS.neutral[600]} />
                 <Text style={[
-                  styles.modeText,
-                  scheduleMode === 'scheduled' && styles.selectedModeText
+                  styles.optionTitle,
+                  scheduleOption === 'unscheduled' && styles.selectedOptionText
                 ]}>
-                  Schedule Time
+                  Add without scheduling
+                </Text>
+                <Text style={[
+                  styles.optionDescription,
+                  scheduleOption === 'unscheduled' && styles.selectedOptionDescription
+                ]}>
+                  I'll schedule it later
                 </Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[
-                  styles.modeButton,
-                  scheduleMode === 'unscheduled' && styles.selectedMode
+                  styles.scheduleOption,
+                  scheduleOption === 'later' && styles.selectedOption
                 ]}
-                onPress={() => setScheduleMode('unscheduled')}
+                onPress={() => setScheduleOption('later')}
               >
-                <Calendar size={16} color={scheduleMode === 'unscheduled' ? COLORS.white : COLORS.neutral[600]} />
                 <Text style={[
-                  styles.modeText,
-                  scheduleMode === 'unscheduled' && styles.selectedModeText
+                  styles.optionTitle,
+                  scheduleOption === 'later' && styles.selectedOptionText
                 ]}>
-                  Add Unscheduled
+                  Schedule for specific time
+                </Text>
+                <Text style={[
+                  styles.optionDescription,
+                  scheduleOption === 'later' && styles.selectedOptionDescription
+                ]}>
+                  Choose a time slot
                 </Text>
               </TouchableOpacity>
             </View>
-          )}
+          </View>
 
-          {scheduleMode === 'scheduled' && (
+          {scheduleOption === 'later' && (
             <>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Select Duration</Text>
+                <View style={styles.durationGrid}>
+                  {DURATION_OPTIONS.map((duration) => (
+                    <TouchableOpacity
+                      key={duration}
+                      style={[
+                        styles.durationOption,
+                        selectedDuration === duration && styles.selectedDuration
+                      ]}
+                      onPress={() => setSelectedDuration(duration)}
+                    >
+                      <Text style={[
+                        styles.durationText,
+                        selectedDuration === duration && styles.selectedDurationText
+                      ]}>
+                        {formatDuration(duration)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Select Start Time</Text>
                 <View style={styles.timeGrid}>
@@ -186,29 +239,6 @@ const EnhancedScheduleGoalModal = ({
                 </View>
               </View>
 
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Select Duration</Text>
-                <View style={styles.durationGrid}>
-                  {DURATION_OPTIONS.map((duration) => (
-                    <TouchableOpacity
-                      key={duration}
-                      style={[
-                        styles.durationOption,
-                        selectedDuration === duration && styles.selectedDuration
-                      ]}
-                      onPress={() => setSelectedDuration(duration)}
-                    >
-                      <Text style={[
-                        styles.durationText,
-                        selectedDuration === duration && styles.selectedDurationText
-                      ]}>
-                        {formatDuration(duration)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
               {selectedTimeSlot && (
                 <View style={styles.preview}>
                   <View style={styles.previewHeader}>
@@ -225,17 +255,6 @@ const EnhancedScheduleGoalModal = ({
               )}
             </>
           )}
-
-          {scheduleMode === 'unscheduled' && (
-            <View style={styles.unscheduledInfo}>
-              <Calendar size={32} color={COLORS.accent[600]} />
-              <Text style={styles.unscheduledTitle}>Add to Day Plan</Text>
-              <Text style={styles.unscheduledDescription}>
-                This task will be added to your day plan without a specific time. 
-                You can schedule it later from your daily view.
-              </Text>
-            </View>
-          )}
         </ScrollView>
 
         <View style={styles.footer}>
@@ -246,12 +265,12 @@ const EnhancedScheduleGoalModal = ({
             textStyle={styles.cancelButtonText}
           />
           <Button
-            title={scheduleMode === 'scheduled' ? "Schedule Task" : "Add Task"}
+            title={scheduleOption === 'unscheduled' ? 'Add to Day' : 'Schedule'}
             onPress={handleSchedule}
-            disabled={scheduleMode === 'scheduled' && !selectedTimeSlot}
+            disabled={!canProceed()}
             style={[
               styles.scheduleButton,
-              scheduleMode === 'scheduled' && !selectedTimeSlot && styles.disabledButton
+              !canProceed() && styles.disabledButton
             ]}
           />
         </View>
@@ -286,7 +305,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
-  goalInfo: {
+  itemInfo: {
     backgroundColor: COLORS.neutral[50],
     borderRadius: 12,
     padding: 16,
@@ -294,50 +313,27 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: COLORS.primary[500],
   },
-  goalTitle: {
+  itemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  itemTitle: {
     fontSize: 18,
     fontFamily: 'Inter-SemiBold',
     color: COLORS.neutral[800],
+    marginLeft: 8,
   },
-  goalDescription: {
+  itemDescription: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[600],
-    marginTop: 4,
+    marginBottom: 8,
   },
   dateText: {
     fontSize: 14,
     fontFamily: 'Inter-Medium',
     color: COLORS.primary[600],
-    marginTop: 8,
-  },
-  modeSelector: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.neutral[100],
-    borderRadius: 8,
-    padding: 4,
-    marginBottom: 16,
-  },
-  modeButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    gap: 6,
-  },
-  selectedMode: {
-    backgroundColor: COLORS.primary[600],
-  },
-  modeText: {
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
-    color: COLORS.neutral[600],
-  },
-  selectedModeText: {
-    color: COLORS.white,
   },
   section: {
     marginVertical: 16,
@@ -348,32 +344,36 @@ const styles = StyleSheet.create({
     color: COLORS.neutral[800],
     marginBottom: 12,
   },
-  timeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+  scheduleOptions: {
+    gap: 12,
   },
-  timeSlot: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: COLORS.neutral[100],
-    borderWidth: 1,
+  scheduleOption: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
     borderColor: COLORS.neutral[200],
-    minWidth: 80,
-    alignItems: 'center',
   },
-  selectedTimeSlot: {
-    backgroundColor: COLORS.primary[600],
-    borderColor: COLORS.primary[600],
+  selectedOption: {
+    backgroundColor: COLORS.primary[50],
+    borderColor: COLORS.primary[300],
   },
-  timeSlotText: {
+  optionTitle: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.neutral[800],
+    marginBottom: 4,
+  },
+  selectedOptionText: {
+    color: COLORS.primary[800],
+  },
+  optionDescription: {
     fontSize: 14,
-    fontFamily: 'Inter-Medium',
-    color: COLORS.neutral[700],
+    fontFamily: 'Inter-Regular',
+    color: COLORS.neutral[600],
   },
-  selectedTimeSlotText: {
-    color: COLORS.white,
+  selectedOptionDescription: {
+    color: COLORS.primary[700],
   },
   durationGrid: {
     flexDirection: 'row',
@@ -400,6 +400,33 @@ const styles = StyleSheet.create({
     color: COLORS.neutral[700],
   },
   selectedDurationText: {
+    color: COLORS.white,
+  },
+  timeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  timeSlot: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: COLORS.neutral[100],
+    borderWidth: 1,
+    borderColor: COLORS.neutral[200],
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  selectedTimeSlot: {
+    backgroundColor: COLORS.primary[600],
+    borderColor: COLORS.primary[600],
+  },
+  timeSlotText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.neutral[700],
+  },
+  selectedTimeSlotText: {
     color: COLORS.white,
   },
   preview: {
@@ -432,28 +459,6 @@ const styles = StyleSheet.create({
     color: COLORS.primary[600],
     marginTop: 4,
   },
-  unscheduledInfo: {
-    alignItems: 'center',
-    paddingVertical: 40,
-    backgroundColor: COLORS.accent[50],
-    borderRadius: 12,
-    marginVertical: 16,
-  },
-  unscheduledTitle: {
-    fontSize: 18,
-    fontFamily: 'Inter-SemiBold',
-    color: COLORS.accent[800],
-    marginTop: 12,
-  },
-  unscheduledDescription: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: COLORS.accent[600],
-    textAlign: 'center',
-    marginTop: 8,
-    paddingHorizontal: 20,
-    lineHeight: 20,
-  },
   footer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -477,4 +482,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default EnhancedScheduleGoalModal;
+export default EnhancedScheduleModal;
