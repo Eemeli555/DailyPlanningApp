@@ -14,7 +14,7 @@ import GoalItem from '@/components/GoalItem';
 import ProgressBar from '@/components/ProgressBar';
 import FloatingActionButton from '@/components/FloatingActionButton';
 import DailyScheduleOverview from '@/components/DailyScheduleOverview';
-import ScheduleGoalModal from '@/components/ScheduleGoalModal';
+import EnhancedScheduleGoalModal from '@/components/EnhancedScheduleGoalModal';
 import CreateChoiceModal from '@/components/CreateChoiceModal';
 import HabitCard from '@/components/HabitCard';
 import { getCompletionStatus } from '@/utils/helpers';
@@ -22,6 +22,7 @@ import { calculateHabitStreak } from '@/utils/gamification';
 import DigitalWellnessCard from '@/components/DigitalWellnessCard';
 import IntentPromptModal from '@/components/IntentPromptModal';
 import { formatUsageTime } from '@/utils/socialMediaTracking';
+import FutureDayPlannerModal from '@/components/FutureDayPlannerModal';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const isSmallScreen = screenWidth < 375;
@@ -60,6 +61,7 @@ export default function TodayScreen() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showIntentPrompt, setShowIntentPrompt] = useState(false);
   const [selectedApp, setSelectedApp] = useState(null);
+  const [showFuturePlannerModal, setShowFuturePlannerModal] = useState(false);
   
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
@@ -270,6 +272,15 @@ export default function TodayScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: 100 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Future Planning Button */}
+        <TouchableOpacity 
+          style={styles.futurePlanningButton}
+          onPress={() => setShowFuturePlannerModal(true)}
+        >
+          <Calendar size={20} color={COLORS.white} />
+          <Text style={styles.futurePlanningText}>Plan Future Days</Text>
+        </TouchableOpacity>
+
         {/* Digital Wellness Card */}
         {totalUsageMinutes > 0 && (
           <Animated.View 
@@ -487,7 +498,7 @@ export default function TodayScreen() {
         onPress={() => setShowCreateModal(true)}
       />
 
-      <ScheduleGoalModal
+      <EnhancedScheduleGoalModal
         visible={showScheduleModal}
         goal={selectedGoalForScheduling}
         onClose={() => {
@@ -501,6 +512,11 @@ export default function TodayScreen() {
       <CreateChoiceModal
         visible={showCreateModal}
         onClose={() => setShowCreateModal(false)}
+      />
+
+      <FutureDayPlannerModal
+        visible={showFuturePlannerModal}
+        onClose={() => setShowFuturePlannerModal(false)}
       />
 
       {/* Achievement Modal */}
@@ -697,6 +713,32 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingBottom: 100,
+  },
+  futurePlanningButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary[600],
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    marginHorizontal: isSmallScreen ? 16 : 20,
+    marginTop: 16,
+    marginBottom: 16,
+    gap: 8,
+    shadowColor: COLORS.neutral[900],
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  futurePlanningText: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.white,
   },
   challengeCard: {
     backgroundColor: COLORS.warning[50],

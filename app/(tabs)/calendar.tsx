@@ -2,7 +2,7 @@ import { useContext, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Dimensions, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isSameDay, addMonths, subMonths, parse, set } from 'date-fns';
-import { ChevronLeft, ChevronRight, Clock, CircleCheck as CheckCircle, Circle, Calendar as CalendarIcon, ChartBar as BarChart3 } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Clock, CircleCheck as CheckCircle, Circle, Calendar as CalendarIcon, ChartBar as BarChart3, Plus } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
@@ -12,6 +12,8 @@ import GoalItem from '@/components/GoalItem';
 import { Goal } from '@/types';
 import { getCompletionColorForProgress } from '@/utils/helpers';
 import DailyPlannerTable from '@/components/DailyPlannerTable';
+import FutureDayPlannerModal from '@/components/FutureDayPlannerModal';
+import EnhancedScheduleGoalModal from '@/components/EnhancedScheduleGoalModal';
 
 type CalendarView = 'calendar' | 'planner';
 
@@ -30,7 +32,11 @@ export default function CalendarScreen() {
     socialMediaData, 
     habits, 
     habitEntries,
-    getDailyEntry
+    getDailyEntry,
+    completeGoal,
+    uncompleteGoal,
+    addGoalToFutureDay,
+    createDailyPlan
   } = useContext(AppContext);
   
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -39,6 +45,7 @@ export default function CalendarScreen() {
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<{ hour: number; minutes: number } | null>(null);
   const [calendarView, setCalendarView] = useState<CalendarView>('calendar');
+  const [showFuturePlannerModal, setShowFuturePlannerModal] = useState(false);
   
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -96,31 +103,15 @@ export default function CalendarScreen() {
     return getCompletionColorForProgress(realGoalsProgress);
   };
 
-  const handleScheduleGoal = (goal: Goal, slot: { hour: number; minutes: number }) => {
+  const handleScheduleGoal = (goal: Goal) => {
     setSelectedGoal(goal);
-    setSelectedTimeSlot(slot);
     setShowScheduleModal(true);
   };
 
-  const confirmSchedule = (duration: number) => {
-    if (!selectedGoal || !selectedTimeSlot) return;
-
-    const startTime = set(selectedDate, { 
-      hours: selectedTimeSlot.hour, 
-      minutes: selectedTimeSlot.minutes 
-    });
-    
-    const endTime = new Date(startTime);
-    endTime.setMinutes(startTime.getMinutes() + duration * 60);
-
-    updateGoalSchedule(selectedGoal.id, {
-      start: startTime.toISOString(),
-      end: endTime.toISOString(),
-    });
-
+  const confirmSchedule = (goalId: string, schedule: { start: string; end: string }) => {
+    updateGoalSchedule(goalId, schedule);
     setShowScheduleModal(false);
     setSelectedGoal(null);
-    setSelectedTimeSlot(null);
   };
 
   const getScheduledGoalsForTimeSlot = (slot: { hour: number; minutes: number }) => {
@@ -189,6 +180,16 @@ export default function CalendarScreen() {
     !goal.scheduledTime && !goal.id.startsWith('habit-')
   ) || [];
 
+  const handleAddGoalToSelectedDay = () => {
+    // Ensure we have a plan for the selected day
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    if (!dailyPlans.find(plan => plan.date === dateStr)) {
+      createDailyPlan(dateStr);
+    }
+    
+    setShowFuturePlannerModal(true);
+  };
+
   const renderCalendarView = () => (
     <>
       <View style={styles.calendarHeader}>
@@ -252,10 +253,19 @@ export default function CalendarScreen() {
       
       <View style={styles.selectedDateContainer}>
         <View style={styles.scheduleHeader}>
-          <Text style={styles.selectedDateTitle}>
-            {isToday(selectedDate) ? 'Today' : format(selectedDate, 'EEEE, MMMM d')}
-          </Text>
-          <Text style={styles.scheduleSubtitle}>Daily Overview</Text>
+          <View style={styles.scheduleHeaderLeft}>
+            <Text style={styles.selectedDateTitle}>
+              {isToday(selectedDate) ? 'Today' : format(selectedDate, 'EEEE, MMMM d')}
+            </Text>
+            <Text style={styles.scheduleSubtitle}>Daily Overview</Text>
+          </View>
+          
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={handleAddGoalToSelectedDay}
+          >
+            <Plus size={20} color={COLORS.white} />
+          </TouchableOpacity>
         </View>
         
         <ScrollView
@@ -355,13 +365,22 @@ export default function CalendarScreen() {
                       ]}>
                         {block.goal.title}
                       </Text>
-                      <View style={styles.statusIcon}>
+                      <TouchableOpacity 
+                        style={styles.statusIcon}
+                        onPress={() => {
+                          if (block.completed) {
+                            uncompleteGoal(block.goal.id);
+                          } else {
+                            completeGoal(block.goal.id);
+                          }
+                        }}
+                      >
                         {block.completed ? (
                           <CheckCircle size={20} color={COLORS.success[600]} />
                         ) : (
                           <Circle size={20} color={COLORS.neutral[400]} />
                         )}
-                      </View>
+                      </TouchableOpacity>
                     </View>
                     
                     {block.goal.description && (
@@ -404,13 +423,22 @@ export default function CalendarScreen() {
                         ]}>
                           {goal.title}
                         </Text>
-                        <View style={styles.statusIcon}>
+                        <TouchableOpacity 
+                          style={styles.statusIcon}
+                          onPress={() => {
+                            if (goal.completed) {
+                              uncompleteGoal(goal.id);
+                            } else {
+                              completeGoal(goal.id);
+                            }
+                          }}
+                        >
                           {goal.completed ? (
                             <CheckCircle size={18} color={COLORS.success[600]} />
                           ) : (
                             <Circle size={18} color={COLORS.neutral[400]} />
                           )}
-                        </View>
+                        </TouchableOpacity>
                       </View>
                       
                       {goal.description && (
@@ -421,6 +449,14 @@ export default function CalendarScreen() {
                           {goal.description}
                         </Text>
                       )}
+                      
+                      <TouchableOpacity 
+                        style={styles.scheduleButton}
+                        onPress={() => handleScheduleGoal(goal)}
+                      >
+                        <Clock size={14} color={COLORS.primary[600]} />
+                        <Text style={styles.scheduleButtonText}>Schedule</Text>
+                      </TouchableOpacity>
                     </View>
                   </Animated.View>
                 ))}
@@ -497,6 +533,13 @@ export default function CalendarScreen() {
               <Text style={styles.emptyStateSubtext}>
                 Start planning and tracking to see your daily overview here
               </Text>
+              <TouchableOpacity 
+                style={styles.addPlanButton}
+                onPress={handleAddGoalToSelectedDay}
+              >
+                <Plus size={16} color={COLORS.white} />
+                <Text style={styles.addPlanButtonText}>Add to this day</Text>
+              </TouchableOpacity>
             </View>
           )}
         </ScrollView>
@@ -558,42 +601,19 @@ export default function CalendarScreen() {
         </View>
       )}
 
-      <Modal
+      <EnhancedScheduleGoalModal
         visible={showScheduleModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowScheduleModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Set Duration</Text>
-            <Text style={styles.modalSubtitle}>
-              How long will "{selectedGoal?.title}" take?
-            </Text>
+        goal={selectedGoal}
+        onClose={() => setShowScheduleModal(false)}
+        onSchedule={confirmSchedule}
+        selectedDate={selectedDate}
+      />
 
-            <View style={styles.durationButtons}>
-              {[0.5, 1, 1.5, 2, 2.5, 3].map(duration => (
-                <TouchableOpacity
-                  key={duration}
-                  style={styles.durationButton}
-                  onPress={() => confirmSchedule(duration)}
-                >
-                  <Text style={styles.durationButtonText}>
-                    {duration} {duration === 1 ? 'hour' : 'hours'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => setShowScheduleModal(false)}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <FutureDayPlannerModal
+        visible={showFuturePlannerModal}
+        onClose={() => setShowFuturePlannerModal(false)}
+        initialDate={selectedDate}
+      />
     </View>
   );
 }
@@ -601,14 +621,23 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.neutral[50],
   },
   header: {
     paddingHorizontal: isSmallScreen ? 16 : 20,
     paddingTop: 16,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.neutral[200],
+    paddingBottom: 12,
+    backgroundColor: COLORS.white,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    shadowColor: COLORS.neutral[900],
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   title: {
     fontSize: isSmallScreen ? 26 : 28,
@@ -743,6 +772,9 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
   },
   scheduleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: isSmallScreen ? 16 : 20,
     paddingTop: 20,
     paddingBottom: 16,
@@ -751,6 +783,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+  },
+  scheduleHeaderLeft: {
+    flex: 1,
   },
   selectedDateTitle: {
     fontSize: isSmallScreen ? 18 : 20,
@@ -762,6 +797,22 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[500],
     marginTop: 4,
+  },
+  addButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary[600],
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: COLORS.neutral[900],
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   scheduleScrollView: {
     flex: 1,
@@ -963,6 +1014,22 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: COLORS.neutral[600],
     lineHeight: 18,
+    marginBottom: 8,
+  },
+  scheduleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary[50],
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    gap: 4,
+  },
+  scheduleButtonText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    color: COLORS.primary[600],
   },
   habitsSection: {
     paddingHorizontal: isSmallScreen ? 16 : 20,
@@ -1068,6 +1135,21 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
     lineHeight: 20,
+    marginBottom: 20,
+  },
+  addPlanButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary[600],
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 8,
+  },
+  addPlanButtonText: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.white,
   },
   modalOverlay: {
     flex: 1,

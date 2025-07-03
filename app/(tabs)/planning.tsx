@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Plus, Target, Repeat, Dumbbell, ListTodo, Filter, Search, Activity } from 'lucide-react-native';
+import { Plus, Target, Repeat, Dumbbell, ListTodo, Filter, Search, Activity, Calendar } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
@@ -14,6 +14,7 @@ import LongTermGoalCard from '@/components/LongTermGoalCard';
 import GoalItem from '@/components/GoalItem';
 import ProductiveActivityCard from '@/components/ProductiveActivityCard';
 import CreateChoiceModal from '@/components/CreateChoiceModal';
+import FutureDayPlannerModal from '@/components/FutureDayPlannerModal';
 
 const { width: screenWidth } = Dimensions.get('window');
 const isSmallScreen = screenWidth < 375;
@@ -48,6 +49,7 @@ export default function PlanningScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showFuturePlannerModal, setShowFuturePlannerModal] = useState(false);
   const [goalView, setGoalView] = useState<'all' | 'daily' | 'longterm'>('all');
   
   const today = new Date().toISOString().split('T')[0];
@@ -151,6 +153,15 @@ export default function PlanningScreen() {
           </Text>
         </View>
       </View>
+
+      {/* Future Planning Button */}
+      <TouchableOpacity 
+        style={styles.futurePlanningButton}
+        onPress={() => setShowFuturePlannerModal(true)}
+      >
+        <Calendar size={20} color={COLORS.white} />
+        <Text style={styles.futurePlanningText}>Plan Future Days</Text>
+      </TouchableOpacity>
 
       {/* Quick Access */}
       <View style={styles.quickAccessSection}>
@@ -831,6 +842,11 @@ export default function PlanningScreen() {
         visible={showCreateModal}
         onClose={() => setShowCreateModal(false)}
       />
+
+      <FutureDayPlannerModal
+        visible={showFuturePlannerModal}
+        onClose={() => setShowFuturePlannerModal(false)}
+      />
     </View>
   );
 }
@@ -1013,6 +1029,30 @@ const styles = StyleSheet.create({
   },
   statLabelSmall: {
     fontSize: 11,
+  },
+  futurePlanningButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary[600],
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    marginBottom: 24,
+    gap: 8,
+    shadowColor: COLORS.neutral[900],
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  futurePlanningText: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: COLORS.white,
   },
   quickAccessSection: {
     marginBottom: 24,

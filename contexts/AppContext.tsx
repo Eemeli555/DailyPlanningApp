@@ -1,406 +1,243 @@
-import React, { createContext, ReactNode, useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { format, addDays, subDays, isWithinInterval, startOfWeek, endOfWeek } from 'date-fns';
 import * as Notifications from 'expo-notifications';
-import { format, isWithinInterval, startOfDay, endOfDay, startOfMonth, endOfMonth, eachDayOfInterval, isToday, parseISO, isSameDay } from 'date-fns';
-import { useRouter } from 'expo-router';
+
 import { 
-  DailyPlan, 
   Goal, 
-  NotificationConfig, 
+  DailyPlan, 
   Workout, 
-  Exercise, 
+  NotificationConfig, 
   DailyEntry, 
   CustomColumn, 
   DailyPlannerSettings,
   Habit,
   HabitEntry,
   LongTermGoal,
+  SubTask,
   JournalEntry,
   UserProfile,
+  Badge,
   Achievement,
   DailyChallenge,
   SleepData,
   SocialMediaUsage,
-  ProductiveActivity,
-  ActivityEntry,
-  Analytics,
-  DashboardMetric,
   TrackedApp,
   AppUsageSession,
   IntentPromptResponse,
   SocialMediaReflection,
   UsageAlert,
-  DigitalWellnessGoal
+  DigitalWellnessGoal,
+  ProductiveActivity,
+  ActivityEntry,
+  Analytics,
+  DashboardMetric
 } from '@/types';
 import { generateId } from '@/utils/helpers';
-import { calculateLevel, checkForNewAchievements, generateDailyChallenge } from '@/utils/gamification';
-import { XP_REWARDS } from '@/constants/gamification';
+import { 
+  calculateLevel, 
+  calculateHabitStreak, 
+  checkForNewAchievements, 
+  generateDailyChallenge 
+} from '@/utils/gamification';
+import { XP_REWARDS, DAILY_CHALLENGES } from '@/constants/gamification';
 import { COLORS } from '@/constants/theme';
-import { POPULAR_SOCIAL_APPS } from '@/utils/socialMediaTracking';
 
-interface AppContextProps {
+interface AppContextType {
+  // Goals
   goalsLibrary: Goal[];
   todaysGoals: Goal[];
   dailyPlans: DailyPlan[];
   progressToday: number;
-  workouts: Workout[];
-  quoteOfTheDay: { text: string; author: string };
+  addGoal: (goalData: Partial<Goal>) => void;
+  updateGoal: (goalId: string, updates: Partial<Goal>) => void;
+  deleteGoal: (goalId: string) => void;
+  getGoalById: (goalId: string) => Goal | undefined;
+  completeGoal: (goalId: string) => void;
+  uncompleteGoal: (goalId: string) => void;
+  setTimerForGoal: (goalId: string) => void;
+  scheduleNotification: (goalId: string, config: NotificationConfig) => Promise<void>;
+  updateGoalSchedule: (goalId: string, schedule: { start: string; end: string }) => void;
+  toggleAutomaticGoal: (goalId: string) => void;
+  getAverageProgress: (startDate?: Date, endDate?: Date) => number;
   
+  // Future day planning
+  addGoalToFutureDay: (date: string, goalId: string) => void;
+  addActivityToFutureDay: (date: string, activityId: string) => void;
+  getDailyPlan: (date: string) => DailyPlan | undefined;
+  createDailyPlan: (date: string) => DailyPlan;
+
+  // Workouts
+  workouts: Workout[];
+  addWorkout: (workout: Omit<Workout, 'id' | 'createdAt'>) => void;
+  updateWorkout: (workoutId: string, updates: Partial<Workout>) => void;
+  deleteWorkout: (workoutId: string) => void;
+
   // Daily Planner
   dailyEntries: DailyEntry[];
   plannerSettings: DailyPlannerSettings;
-  
-  // New features
+  getDailyEntry: (date: string) => DailyEntry | undefined;
+  updateDailyEntry: (date: string, updates: Partial<DailyEntry>) => void;
+  addCustomColumn: (column: CustomColumn) => void;
+  removeCustomColumn: (columnId: string) => void;
+  updatePlannerSettings: (settings: Partial<DailyPlannerSettings>) => void;
+
+  // Habits
   habits: Habit[];
   habitEntries: HabitEntry[];
+  addHabit: (habitData: Omit<Habit, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateHabit: (habitId: string, updates: Partial<Habit>) => void;
+  deleteHabit: (habitId: string) => void;
+  toggleHabitCompletion: (habitId: string, date: string) => void;
+
+  // Long-term Goals
   longTermGoals: LongTermGoal[];
+  addLongTermGoal: (goalData: Omit<LongTermGoal, 'id' | 'createdAt' | 'updatedAt' | 'progress' | 'subtasks'> & { subtasks: string[] }) => void;
+  updateLongTermGoal: (goalId: string, updates: Partial<LongTermGoal>) => void;
+  deleteLongTermGoal: (goalId: string) => void;
+  toggleSubtask: (goalId: string, subtaskId: string) => void;
+  addSubtask: (goalId: string, title: string) => void;
+  removeSubtask: (goalId: string, subtaskId: string) => void;
+
+  // Journal
   journalEntries: JournalEntry[];
+  addJournalEntry: (date: string, entryData: Partial<JournalEntry>) => void;
+  updateJournalEntry: (entryId: string, updates: Partial<JournalEntry>) => void;
+  deleteJournalEntry: (entryId: string) => void;
+  canTakeMorningQuiz: boolean;
+  canTakeEveningQuiz: boolean;
+
+  // Gamification
   userProfile: UserProfile | null;
   achievements: Achievement[];
   dailyChallenge: DailyChallenge | null;
+  updateUserProfile: (updates: Partial<UserProfile>) => void;
+  awardXP: (amount: number, reason: string) => void;
+  completeDailyChallenge: () => void;
+  scheduleQuizReminders: () => void;
+
+  // Sleep & Wellness
   sleepData: SleepData[];
+  addSleepData: (sleepData: Omit<SleepData, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateSleepData: (sleepId: string, updates: Partial<SleepData>) => void;
+
+  // Social Media Tracking
   socialMediaData: SocialMediaUsage[];
-  productiveActivities: ProductiveActivity[];
-  activityEntries: ActivityEntry[];
-  dashboardMetrics: DashboardMetric[];
-  
-  // Social Media Wellness
   trackedApps: TrackedApp[];
   appUsageSessions: AppUsageSession[];
   intentPromptResponses: IntentPromptResponse[];
   socialMediaReflections: SocialMediaReflection[];
   usageAlerts: UsageAlert[];
+  addTrackedApp: (appData: Omit<TrackedApp, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateTrackedApp: (appId: string, updates: Partial<TrackedApp>) => void;
+  removeTrackedApp: (appId: string) => void;
+  addAppUsageSession: (sessionData: Omit<AppUsageSession, 'id' | 'createdAt'>) => void;
+  addIntentPromptResponse: (responseData: Omit<IntentPromptResponse, 'id' | 'createdAt'>) => void;
+  addSocialMediaReflection: (reflectionData: Omit<SocialMediaReflection, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  addUsageAlert: (alertData: Omit<UsageAlert, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateUsageAlert: (alertId: string, updates: Partial<UsageAlert>) => void;
+  removeUsageAlert: (alertId: string) => void;
+
+  // Digital Wellness Goals
   digitalWellnessGoals: DigitalWellnessGoal[];
-  
-  // Quiz availability
-  canTakeMorningQuiz: boolean;
-  canTakeEveningQuiz: boolean;
-  
-  addGoal: (data: { 
-    title: string;
-    description?: string;
-    addToToday?: boolean;
-  }) => void;
-  
-  updateGoal: (goalId: string, data: {
-    title: string;
-    description?: string;
-  }) => void;
-  
-  deleteGoal: (goalId: string) => void;
-  completeGoal: (goalId: string) => void;
-  uncompleteGoal: (goalId: string) => void;
-  getGoalById: (goalId: string) => Goal | undefined;
-  getAverageProgress: (startDate?: Date, endDate?: Date) => number;
-  setTimerForGoal: (goalId: string) => void;
-  scheduleNotification: (goalId: string, config: NotificationConfig) => void;
-  updateGoalSchedule: (goalId: string, schedule: { start: string; end: string }) => void;
-  
-  // Workout functions
-  addWorkout: (data: {
-    name: string;
-    description?: string;
-    exercises: Exercise[];
-    duration: number;
-  }) => void;
-  updateWorkout: (workoutId: string, data: {
-    name: string;
-    description?: string;
-    exercises: Exercise[];
-    duration: number;
-  }) => void;
-  deleteWorkout: (workoutId: string) => void;
-  getWorkoutById: (workoutId: string) => Workout | undefined;
-  
-  // Daily Planner functions
-  getDailyEntry: (date: string) => DailyEntry | undefined;
-  updateDailyEntry: (date: string, updates: Partial<DailyEntry>) => void;
-  addCustomColumn: (column: CustomColumn) => void;
-  updateCustomColumn: (columnId: string, updates: Partial<CustomColumn>) => void;
-  removeCustomColumn: (columnId: string) => void;
-  updatePlannerSettings: (settings: Partial<DailyPlannerSettings>) => void;
-  getEntriesForMonth: (year: number, month: number) => DailyEntry[];
-  
-  // New feature functions
-  addHabit: (data: {
-    title: string;
-    description?: string;
-    category: string;
-    frequency: 'daily' | 'weekly';
-    targetCount?: number;
-    unit?: string;
-    color: string;
-    icon: string;
-  }) => void;
-  updateHabit: (habitId: string, updates: Partial<Habit>) => void;
-  deleteHabit: (habitId: string) => void;
-  toggleHabitCompletion: (habitId: string, date: string) => void;
-  
-  addLongTermGoal: (data: {
-    title: string;
-    description?: string;
-    category: string;
-    priority: 'low' | 'medium' | 'high';
-    deadline?: string;
-    subtasks: string[];
-    color: string;
-  }) => void;
-  updateLongTermGoal: (goalId: string, updates: Partial<LongTermGoal>) => void;
-  deleteLongTermGoal: (goalId: string) => void;
-  toggleSubtask: (goalId: string, subtaskId: string) => void;
-  
-  addJournalEntry: (date: string, data: {
-    type?: 'morning' | 'evening' | 'free';
-    mood: number;
-    energy?: number;
-    stress?: number;
-    reflection?: string;
-    gratitude?: string[];
-    highlights?: string;
-    challenges?: string;
-    tomorrowFocus?: string;
-    sleepHours?: number;
-    sleepQuality?: number;
-    morningFeeling?: string;
-    mainFocus?: string;
-    dailyGoals?: string[];
-    morningGratitude?: string;
-    socialMediaMeaningful?: number;
-    socialMediaDistraction?: boolean;
-    socialMediaAlternatives?: string[];
-  }) => void;
-  updateJournalEntry: (entryId: string, updates: Partial<JournalEntry>) => void;
-  deleteJournalEntry: (entryId: string) => void;
-  
-  // Sleep tracking
-  addSleepData: (data: {
-    date: string;
-    hoursSlept: number;
-    quality: number;
-    bedTime?: string;
-    wakeTime?: string;
-    notes?: string;
-  }) => void;
-  updateSleepData: (sleepId: string, updates: Partial<SleepData>) => void;
-  
-  // Social media tracking
-  addSocialMediaUsage: (data: {
-    date: string;
-    totalMinutes: number;
-    apps: { name: string; minutes: number; category: string }[];
-    notes?: string;
-  }) => void;
-  updateSocialMediaUsage: (usageId: string, updates: Partial<SocialMediaUsage>) => void;
-  
-  // Productive activities
-  addProductiveActivity: (data: {
-    name: string;
-    description?: string;
-    category: 'mind' | 'body' | 'work' | 'creative' | 'social' | 'other';
-    color: string;
-    icon: string;
-    estimatedDuration?: number;
-  }) => void;
+  addDigitalWellnessGoal: (goalData: Omit<DigitalWellnessGoal, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateDigitalWellnessGoal: (goalId: string, updates: Partial<DigitalWellnessGoal>) => void;
+
+  // Productive Activities
+  productiveActivities: ProductiveActivity[];
+  activityEntries: ActivityEntry[];
+  addProductiveActivity: (activityData: Omit<ProductiveActivity, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateProductiveActivity: (activityId: string, updates: Partial<ProductiveActivity>) => void;
   deleteProductiveActivity: (activityId: string) => void;
   addActivityToToday: (activityId: string) => void;
-  
-  // Dashboard metrics
+
+  // Analytics & Dashboard
+  dashboardMetrics: DashboardMetric[];
   updateDashboardMetric: (metricId: string, updates: Partial<DashboardMetric>) => void;
   toggleMetricPin: (metricId: string) => void;
   getAnalytics: () => Analytics;
-  
-  // Social Media Wellness
-  addTrackedApp: (data: Omit<TrackedApp, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateTrackedApp: (appId: string, updates: Partial<TrackedApp>) => void;
-  removeTrackedApp: (appId: string) => void;
-  
-  addAppUsageSession: (data: Omit<AppUsageSession, 'id' | 'createdAt'>) => void;
-  
-  addIntentPromptResponse: (data: Omit<IntentPromptResponse, 'id' | 'createdAt'>) => void;
-  
-  addSocialMediaReflection: (data: Omit<SocialMediaReflection, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateSocialMediaReflection: (reflectionId: string, updates: Partial<SocialMediaReflection>) => void;
-  
-  addUsageAlert: (data: Omit<UsageAlert, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateUsageAlert: (alertId: string, updates: Partial<UsageAlert>) => void;
-  removeUsageAlert: (alertId: string) => void;
-  
-  addDigitalWellnessGoal: (data: Omit<DigitalWellnessGoal, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateDigitalWellnessGoal: (goalId: string, updates: Partial<DigitalWellnessGoal>) => void;
-  removeDigitalWellnessGoal: (goalId: string) => void;
-  
-  // User profile
-  updateUserProfile: (updates: Partial<UserProfile>) => void;
-  
-  // Reminders
-  scheduleQuizReminders: () => void;
-  
-  awardXP: (amount: number, reason: string) => void;
-  completeDailyChallenge: () => void;
+
+  // Quotes
+  quoteOfTheDay: { text: string; author: string };
 }
 
-export const AppContext = createContext<AppContextProps>({
-  goalsLibrary: [],
-  todaysGoals: [],
-  dailyPlans: [],
-  progressToday: 0,
-  workouts: [],
-  quoteOfTheDay: { text: '', author: '' },
-  dailyEntries: [],
-  plannerSettings: { customColumns: [], autoFillEnabled: true },
-  habits: [],
-  habitEntries: [],
-  longTermGoals: [],
-  journalEntries: [],
-  userProfile: null,
-  achievements: [],
-  dailyChallenge: null,
-  sleepData: [],
-  socialMediaData: [],
-  productiveActivities: [],
-  activityEntries: [],
-  dashboardMetrics: [],
-  
-  // Social Media Wellness
-  trackedApps: [],
-  appUsageSessions: [],
-  intentPromptResponses: [],
-  socialMediaReflections: [],
-  usageAlerts: [],
-  digitalWellnessGoals: [],
-  
-  // Quiz availability
-  canTakeMorningQuiz: false,
-  canTakeEveningQuiz: false,
-  
-  addGoal: () => {},
-  updateGoal: () => {},
-  deleteGoal: () => {},
-  completeGoal: () => {},
-  uncompleteGoal: () => {},
-  getGoalById: () => undefined,
-  getAverageProgress: () => 0,
-  setTimerForGoal: () => {},
-  scheduleNotification: () => {},
-  updateGoalSchedule: () => {},
-  
-  addWorkout: () => {},
-  updateWorkout: () => {},
-  deleteWorkout: () => {},
-  getWorkoutById: () => undefined,
-  
-  getDailyEntry: () => undefined,
-  updateDailyEntry: () => {},
-  addCustomColumn: () => {},
-  updateCustomColumn: () => {},
-  removeCustomColumn: () => {},
-  updatePlannerSettings: () => {},
-  getEntriesForMonth: () => [],
-  
-  addHabit: () => {},
-  updateHabit: () => {},
-  deleteHabit: () => {},
-  toggleHabitCompletion: () => {},
-  
-  addLongTermGoal: () => {},
-  updateLongTermGoal: () => {},
-  deleteLongTermGoal: () => {},
-  toggleSubtask: () => {},
-  
-  addJournalEntry: () => {},
-  updateJournalEntry: () => {},
-  deleteJournalEntry: () => {},
-  
-  addSleepData: () => {},
-  updateSleepData: () => {},
-  
-  addSocialMediaUsage: () => {},
-  updateSocialMediaUsage: () => {},
-  
-  addProductiveActivity: () => {},
-  updateProductiveActivity: () => {},
-  deleteProductiveActivity: () => {},
-  addActivityToToday: () => {},
-  
-  updateDashboardMetric: () => {},
-  toggleMetricPin: () => {},
-  getAnalytics: () => ({
-    habits: { totalCompleted: 0, streakData: [], categoryBreakdown: [], completionRate: 0 },
-    goals: { totalCompleted: 0, inProgress: 0, averageCompletionTime: 0, categoryBreakdown: [] },
-    mood: { averageMood: 0, moodTrend: [], energyTrend: [], stressTrend: [] },
-    sleep: { averageHours: 0, averageQuality: 0, sleepTrend: [], weeklyPattern: [] },
-    socialMedia: { 
-      dailyAverage: 0, 
-      weeklyTrend: [], 
-      appBreakdown: [], 
-      streakDaysUnderAverage: 0,
-      intentfulnessScore: 0,
-      mostCommonReasons: []
-    },
-    productivity: { tasksCompleted: 0, averageDailyProgress: 0, mostProductiveDays: [], weeklyTrends: [], activitiesCompleted: [] },
-  }),
-  
-  // Social Media Wellness
-  addTrackedApp: () => {},
-  updateTrackedApp: () => {},
-  removeTrackedApp: () => {},
-  
-  addAppUsageSession: () => {},
-  
-  addIntentPromptResponse: () => {},
-  
-  addSocialMediaReflection: () => {},
-  updateSocialMediaReflection: () => {},
-  
-  addUsageAlert: () => {},
-  updateUsageAlert: () => {},
-  removeUsageAlert: () => {},
-  
-  addDigitalWellnessGoal: () => {},
-  updateDigitalWellnessGoal: () => {},
-  removeDigitalWellnessGoal: () => {},
-  
-  updateUserProfile: () => {},
-  
-  scheduleQuizReminders: () => {},
-  
-  awardXP: () => {},
-  completeDailyChallenge: () => {},
-});
+const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const QUOTES = [
-  {
-    text: "The only bad workout is the one that didn't happen.",
-    author: "Unknown"
-  },
-  {
-    text: "Success is not final, failure is not fatal: it is the courage to continue that counts.",
-    author: "Winston Churchill"
-  },
-  {
-    text: "The future depends on what you do today.",
-    author: "Mahatma Gandhi"
-  },
-  {
-    text: "It's not about being the best. It's about being better than you were yesterday.",
-    author: "Unknown"
-  },
-  {
-    text: "The only way to do great work is to love what you do.",
-    author: "Steve Jobs"
-  }
+const STORAGE_KEYS = {
+  GOALS_LIBRARY: 'goals_library',
+  DAILY_PLANS: 'daily_plans',
+  WORKOUTS: 'workouts',
+  DAILY_ENTRIES: 'daily_entries',
+  PLANNER_SETTINGS: 'planner_settings',
+  HABITS: 'habits',
+  HABIT_ENTRIES: 'habit_entries',
+  LONG_TERM_GOALS: 'long_term_goals',
+  JOURNAL_ENTRIES: 'journal_entries',
+  USER_PROFILE: 'user_profile',
+  ACHIEVEMENTS: 'achievements',
+  DAILY_CHALLENGE: 'daily_challenge',
+  SLEEP_DATA: 'sleep_data',
+  SOCIAL_MEDIA_DATA: 'social_media_data',
+  TRACKED_APPS: 'tracked_apps',
+  APP_USAGE_SESSIONS: 'app_usage_sessions',
+  INTENT_PROMPT_RESPONSES: 'intent_prompt_responses',
+  SOCIAL_MEDIA_REFLECTIONS: 'social_media_reflections',
+  USAGE_ALERTS: 'usage_alerts',
+  DIGITAL_WELLNESS_GOALS: 'digital_wellness_goals',
+  PRODUCTIVE_ACTIVITIES: 'productive_activities',
+  ACTIVITY_ENTRIES: 'activity_entries',
+  DASHBOARD_METRICS: 'dashboard_metrics',
+};
+
+const DEFAULT_QUOTES = [
+  { text: "The way to get started is to quit talking and begin doing.", author: "Walt Disney" },
+  { text: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt" },
+  { text: "It is during our darkest moments that we must focus to see the light.", author: "Aristotle" },
+  { text: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
+  { text: "The only impossible journey is the one you never begin.", author: "Tony Robbins" },
 ];
 
+const DEFAULT_USER_PROFILE: UserProfile = {
+  id: 'user_1',
+  name: 'User',
+  level: 1,
+  xp: 0,
+  xpToNextLevel: 100,
+  totalXP: 0,
+  badges: [],
+  streaks: {
+    current: 0,
+    longest: 0,
+    lastActiveDate: new Date().toISOString().split('T')[0],
+  },
+  preferences: {
+    theme: 'light',
+    notifications: true,
+    weekStartsOn: 1,
+    socialMediaTracking: true,
+    intentPrompts: true,
+  },
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
 const DEFAULT_DASHBOARD_METRICS: DashboardMetric[] = [
+  {
+    id: 'goals-completed',
+    title: 'Goals Completed',
+    value: '0%',
+    subtitle: 'This week',
+    color: COLORS.primary[600],
+    icon: '🎯',
+    isPinned: true,
+    category: 'goals',
+  },
   {
     id: 'avg-mood',
     title: 'Average Mood',
     value: '0.0',
-    subtitle: 'This week',
-    trend: 'stable',
-    color: COLORS.primary[600],
+    subtitle: 'Last 7 days',
+    color: COLORS.secondary[600],
     icon: '😊',
     isPinned: true,
     category: 'mood',
@@ -412,24 +249,13 @@ const DEFAULT_DASHBOARD_METRICS: DashboardMetric[] = [
     subtitle: 'Last night',
     color: COLORS.accent[600],
     icon: '😴',
-    isPinned: true,
+    isPinned: false,
     category: 'sleep',
-  },
-  {
-    id: 'goals-completed',
-    title: 'Goals Progress',
-    value: '0%',
-    subtitle: 'This week',
-    trend: 'stable',
-    color: COLORS.success[600],
-    icon: '🎯',
-    isPinned: true,
-    category: 'goals',
   },
   {
     id: 'social-media',
     title: 'Screen Time',
-    value: '0h',
+    value: '0h 0m',
     subtitle: 'Today',
     color: COLORS.warning[600],
     icon: '📱',
@@ -437,55 +263,27 @@ const DEFAULT_DASHBOARD_METRICS: DashboardMetric[] = [
     category: 'social',
   },
   {
-    id: 'habit-streak',
-    title: 'Habit Streak',
-    value: '0',
-    subtitle: 'Days',
-    color: COLORS.secondary[600],
-    icon: '🔥',
-    isPinned: false,
-    category: 'habits',
-  },
-  {
-    id: 'productivity-score',
-    title: 'Productivity',
-    value: '0%',
-    subtitle: 'This week',
-    color: COLORS.primary[600],
-    icon: '⚡',
-    isPinned: false,
-    category: 'productivity',
-  },
-  {
     id: 'mindful-usage',
     title: 'Mindful Usage',
     value: '0%',
     subtitle: 'Intentional usage',
-    color: COLORS.secondary[600],
-    icon: '🧠',
+    color: COLORS.success[600],
+    icon: '🧘',
     isPinned: false,
     category: 'social',
   },
 ];
 
-interface AppProviderProps {
-  children: ReactNode;
-}
-
-export const AppProvider = ({ children }: AppProviderProps) => {
-  const router = useRouter();
+export const AppProvider = ({ children }: { children: ReactNode }) => {
+  // State declarations
   const [goalsLibrary, setGoalsLibrary] = useState<Goal[]>([]);
-  const [todaysGoals, setTodaysGoals] = useState<Goal[]>([]);
   const [dailyPlans, setDailyPlans] = useState<DailyPlan[]>([]);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
-  const [quoteOfTheDay, setQuoteOfTheDay] = useState(QUOTES[0]);
   const [dailyEntries, setDailyEntries] = useState<DailyEntry[]>([]);
   const [plannerSettings, setPlannerSettings] = useState<DailyPlannerSettings>({
     customColumns: [],
     autoFillEnabled: true,
   });
-  
-  // New state
   const [habits, setHabits] = useState<Habit[]>([]);
   const [habitEntries, setHabitEntries] = useState<HabitEntry[]>([]);
   const [longTermGoals, setLongTermGoals] = useState<LongTermGoal[]>([]);
@@ -495,662 +293,658 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   const [dailyChallenge, setDailyChallenge] = useState<DailyChallenge | null>(null);
   const [sleepData, setSleepData] = useState<SleepData[]>([]);
   const [socialMediaData, setSocialMediaData] = useState<SocialMediaUsage[]>([]);
-  const [productiveActivities, setProductiveActivities] = useState<ProductiveActivity[]>([]);
-  const [activityEntries, setActivityEntries] = useState<ActivityEntry[]>([]);
-  const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetric[]>(DEFAULT_DASHBOARD_METRICS);
-  
-  // Social Media Wellness state
   const [trackedApps, setTrackedApps] = useState<TrackedApp[]>([]);
   const [appUsageSessions, setAppUsageSessions] = useState<AppUsageSession[]>([]);
   const [intentPromptResponses, setIntentPromptResponses] = useState<IntentPromptResponse[]>([]);
   const [socialMediaReflections, setSocialMediaReflections] = useState<SocialMediaReflection[]>([]);
   const [usageAlerts, setUsageAlerts] = useState<UsageAlert[]>([]);
   const [digitalWellnessGoals, setDigitalWellnessGoals] = useState<DigitalWellnessGoal[]>([]);
-  
-  // Quiz availability state
-  const [canTakeMorningQuiz, setCanTakeMorningQuiz] = useState(false);
-  const [canTakeEveningQuiz, setCanTakeEveningQuiz] = useState(false);
-  
-  const [loaded, setLoaded] = useState(false);
-  
+  const [productiveActivities, setProductiveActivities] = useState<ProductiveActivity[]>([]);
+  const [activityEntries, setActivityEntries] = useState<ActivityEntry[]>([]);
+  const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetric[]>(DEFAULT_DASHBOARD_METRICS);
+
+  // Computed values
+  const today = new Date().toISOString().split('T')[0];
+  const todaysPlan = dailyPlans.find(plan => plan.date === today);
+  const todaysGoals = todaysPlan?.goals || [];
+  const progressToday = todaysPlan?.progress || 0;
+  const quoteOfTheDay = DEFAULT_QUOTES[Math.floor(Math.random() * DEFAULT_QUOTES.length)];
+
+  // Quiz availability
+  const todayJournal = journalEntries.filter(entry => entry.date === today);
+  const canTakeMorningQuiz = !todayJournal.some(entry => entry.type === 'morning');
+  const canTakeEveningQuiz = !todayJournal.some(entry => entry.type === 'evening');
+
+  // Load data on mount
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        // Load existing data
-        const storedGoalsLibrary = await AsyncStorage.getItem('goalsLibrary');
-        if (storedGoalsLibrary) {
-          setGoalsLibrary(JSON.parse(storedGoalsLibrary));
-        }
-        
-        const storedDailyPlans = await AsyncStorage.getItem('dailyPlans');
-        if (storedDailyPlans) {
-          setDailyPlans(JSON.parse(storedDailyPlans));
-        }
-        
-        const storedWorkouts = await AsyncStorage.getItem('workouts');
-        if (storedWorkouts) {
-          setWorkouts(JSON.parse(storedWorkouts));
-        }
-        
-        const storedDailyEntries = await AsyncStorage.getItem('dailyEntries');
-        if (storedDailyEntries) {
-          setDailyEntries(JSON.parse(storedDailyEntries));
-        }
-        
-        const storedPlannerSettings = await AsyncStorage.getItem('plannerSettings');
-        if (storedPlannerSettings) {
-          setPlannerSettings(JSON.parse(storedPlannerSettings));
-        }
-        
-        // Load new data
-        const storedHabits = await AsyncStorage.getItem('habits');
-        if (storedHabits) {
-          setHabits(JSON.parse(storedHabits));
-        }
-        
-        const storedHabitEntries = await AsyncStorage.getItem('habitEntries');
-        if (storedHabitEntries) {
-          setHabitEntries(JSON.parse(storedHabitEntries));
-        }
-        
-        const storedLongTermGoals = await AsyncStorage.getItem('longTermGoals');
-        if (storedLongTermGoals) {
-          setLongTermGoals(JSON.parse(storedLongTermGoals));
-        }
-        
-        const storedJournalEntries = await AsyncStorage.getItem('journalEntries');
-        if (storedJournalEntries) {
-          setJournalEntries(JSON.parse(storedJournalEntries));
-        }
-        
-        const storedSleepData = await AsyncStorage.getItem('sleepData');
-        if (storedSleepData) {
-          setSleepData(JSON.parse(storedSleepData));
-        }
-        
-        const storedSocialMediaData = await AsyncStorage.getItem('socialMediaData');
-        if (storedSocialMediaData) {
-          setSocialMediaData(JSON.parse(storedSocialMediaData));
-        }
-        
-        const storedProductiveActivities = await AsyncStorage.getItem('productiveActivities');
-        if (storedProductiveActivities) {
-          setProductiveActivities(JSON.parse(storedProductiveActivities));
-        }
-        
-        const storedActivityEntries = await AsyncStorage.getItem('activityEntries');
-        if (storedActivityEntries) {
-          setActivityEntries(JSON.parse(storedActivityEntries));
-        }
-        
-        const storedDashboardMetrics = await AsyncStorage.getItem('dashboardMetrics');
-        if (storedDashboardMetrics) {
-          setDashboardMetrics(JSON.parse(storedDashboardMetrics));
-        }
-        
-        // Load Social Media Wellness data
-        const storedTrackedApps = await AsyncStorage.getItem('trackedApps');
-        if (storedTrackedApps) {
-          setTrackedApps(JSON.parse(storedTrackedApps));
-        } else {
-          // Initialize with default apps
-          const defaultApps = POPULAR_SOCIAL_APPS.slice(0, 5).map(app => ({
-            ...app,
-            id: generateId(),
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          }));
-          setTrackedApps(defaultApps);
-          await AsyncStorage.setItem('trackedApps', JSON.stringify(defaultApps));
-        }
-        
-        const storedAppUsageSessions = await AsyncStorage.getItem('appUsageSessions');
-        if (storedAppUsageSessions) {
-          setAppUsageSessions(JSON.parse(storedAppUsageSessions));
-        }
-        
-        const storedIntentPromptResponses = await AsyncStorage.getItem('intentPromptResponses');
-        if (storedIntentPromptResponses) {
-          setIntentPromptResponses(JSON.parse(storedIntentPromptResponses));
-        }
-        
-        const storedSocialMediaReflections = await AsyncStorage.getItem('socialMediaReflections');
-        if (storedSocialMediaReflections) {
-          setSocialMediaReflections(JSON.parse(storedSocialMediaReflections));
-        }
-        
-        const storedUsageAlerts = await AsyncStorage.getItem('usageAlerts');
-        if (storedUsageAlerts) {
-          setUsageAlerts(JSON.parse(storedUsageAlerts));
-        }
-        
-        const storedDigitalWellnessGoals = await AsyncStorage.getItem('digitalWellnessGoals');
-        if (storedDigitalWellnessGoals) {
-          setDigitalWellnessGoals(JSON.parse(storedDigitalWellnessGoals));
-        }
-        
-        const storedUserProfile = await AsyncStorage.getItem('userProfile');
-        if (storedUserProfile) {
-          setUserProfile(JSON.parse(storedUserProfile));
-        } else {
-          // Create initial user profile
-          const initialProfile: UserProfile = {
-            id: generateId(),
-            name: 'User',
-            level: 1,
-            xp: 0,
-            xpToNextLevel: 100,
-            totalXP: 0,
-            badges: [],
-            streaks: {
-              current: 0,
-              longest: 0,
-              lastActiveDate: new Date().toISOString().split('T')[0],
-            },
-            preferences: {
-              theme: 'light',
-              notifications: true,
-              weekStartsOn: 1,
-              socialMediaTracking: true,
-              intentPrompts: true,
-            },
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-          setUserProfile(initialProfile);
-          await AsyncStorage.setItem('userProfile', JSON.stringify(initialProfile));
-        }
-        
-        const storedAchievements = await AsyncStorage.getItem('achievements');
-        if (storedAchievements) {
-          setAchievements(JSON.parse(storedAchievements));
-        }
-        
-        // Generate daily challenge
-        const today = new Date().toISOString().split('T')[0];
-        const storedDailyChallenge = await AsyncStorage.getItem(`dailyChallenge_${today}`);
-        if (storedDailyChallenge) {
-          setDailyChallenge(JSON.parse(storedDailyChallenge));
-        } else {
-          const challenge = generateDailyChallenge([], [], []);
-          const newChallenge: DailyChallenge = {
-            id: generateId(),
-            date: today,
-            ...challenge,
-            completed: false,
-          };
-          setDailyChallenge(newChallenge);
-          await AsyncStorage.setItem(`dailyChallenge_${today}`, JSON.stringify(newChallenge));
-        }
-        
-        // Set quote of the day
-        const todayNum = new Date().getDate();
-        const quoteIndex = todayNum % QUOTES.length;
-        setQuoteOfTheDay(QUOTES[quoteIndex]);
-        
-        // Initialize today's plan - Load existing plan or create empty one
-        const todayStr = format(new Date(), 'yyyy-MM-dd');
-        const todayPlan = JSON.parse(storedDailyPlans || '[]').find(
-          (plan: DailyPlan) => plan.date === todayStr
-        );
-        
-        if (todayPlan) {
-          setTodaysGoals(todayPlan.goals);
-        } else {
-          // Start with empty goals - habits will be added separately
-          setTodaysGoals([]);
-        }
-        
-        // Set up notifications if needed
-        if (Platform.OS !== 'web') {
-          registerForPushNotificationsAsync();
-        }
-        
-        // Schedule quiz reminders
-        scheduleQuizReminders();
-        
-        // Check quiz availability
-        checkQuizAvailability();
-        
-        setLoaded(true);
-      } catch (error) {
-        console.error('Error loading data:', error);
-        setLoaded(true);
-      }
-    };
-    
-    loadData();
+    loadAllData();
   }, []);
 
-  // Check quiz availability
-  const checkQuizAvailability = () => {
-    const today = new Date().toISOString().split('T')[0];
+  // Auto-save data when state changes
+  useEffect(() => {
+    saveData(STORAGE_KEYS.GOALS_LIBRARY, goalsLibrary);
+  }, [goalsLibrary]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.DAILY_PLANS, dailyPlans);
+  }, [dailyPlans]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.WORKOUTS, workouts);
+  }, [workouts]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.DAILY_ENTRIES, dailyEntries);
+  }, [dailyEntries]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.PLANNER_SETTINGS, plannerSettings);
+  }, [plannerSettings]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.HABITS, habits);
+  }, [habits]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.HABIT_ENTRIES, habitEntries);
+  }, [habitEntries]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.LONG_TERM_GOALS, longTermGoals);
+  }, [longTermGoals]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.JOURNAL_ENTRIES, journalEntries);
+  }, [journalEntries]);
+
+  useEffect(() => {
+    if (userProfile) {
+      saveData(STORAGE_KEYS.USER_PROFILE, userProfile);
+    }
+  }, [userProfile]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.ACHIEVEMENTS, achievements);
+  }, [achievements]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.DAILY_CHALLENGE, dailyChallenge);
+  }, [dailyChallenge]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.SLEEP_DATA, sleepData);
+  }, [sleepData]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.SOCIAL_MEDIA_DATA, socialMediaData);
+  }, [socialMediaData]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.TRACKED_APPS, trackedApps);
+  }, [trackedApps]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.APP_USAGE_SESSIONS, appUsageSessions);
+  }, [appUsageSessions]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.INTENT_PROMPT_RESPONSES, intentPromptResponses);
+  }, [intentPromptResponses]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.SOCIAL_MEDIA_REFLECTIONS, socialMediaReflections);
+  }, [socialMediaReflections]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.USAGE_ALERTS, usageAlerts);
+  }, [usageAlerts]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.DIGITAL_WELLNESS_GOALS, digitalWellnessGoals);
+  }, [digitalWellnessGoals]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.PRODUCTIVE_ACTIVITIES, productiveActivities);
+  }, [productiveActivities]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.ACTIVITY_ENTRIES, activityEntries);
+  }, [activityEntries]);
+
+  useEffect(() => {
+    saveData(STORAGE_KEYS.DASHBOARD_METRICS, dashboardMetrics);
+  }, [dashboardMetrics]);
+
+  // Initialize today's plan and daily challenge
+  useEffect(() => {
+    if (!todaysPlan) {
+      createTodaysPlan();
+    }
     
-    // Check if morning quiz was already taken today
-    const tookMorningQuizToday = journalEntries.some(entry => 
-      entry.date === today && entry.type === 'morning'
-    );
-    
-    // Check if evening quiz was already taken today
-    const tookEveningQuizToday = journalEntries.some(entry => 
-      entry.date === today && entry.type === 'evening'
-    );
-    
-    setCanTakeMorningQuiz(!tookMorningQuizToday);
-    setCanTakeEveningQuiz(!tookEveningQuizToday);
+    if (!dailyChallenge || dailyChallenge.date !== today) {
+      generateTodaysChallenge();
+    }
+  }, [today, todaysPlan, dailyChallenge]);
+
+  // Utility functions
+  const saveData = async (key: string, data: any) => {
+    try {
+      await AsyncStorage.setItem(key, JSON.stringify(data));
+    } catch (error) {
+      console.error(`Error saving ${key}:`, error);
+    }
   };
 
-  // Update quiz availability whenever journal entries change
-  useEffect(() => {
-    if (loaded) {
-      checkQuizAvailability();
+  const loadData = async (key: string, defaultValue: any = null) => {
+    try {
+      const data = await AsyncStorage.getItem(key);
+      return data ? JSON.parse(data) : defaultValue;
+    } catch (error) {
+      console.error(`Error loading ${key}:`, error);
+      return defaultValue;
     }
-  }, [journalEntries, loaded]);
+  };
 
-  // Calculate progress for today - Only count real goals, not habits
-  const progressToday = todaysGoals.length > 0
-    ? todaysGoals.filter(goal => !goal.id.startsWith('habit-') && goal.completed).length / 
-      todaysGoals.filter(goal => !goal.id.startsWith('habit-')).length
-    : 0;
-  
-  // Update progress whenever todaysGoals changes
-  useEffect(() => {
-    if (!loaded) return;
-    
-    const updateTodaysPlan = async () => {
-      const today = format(new Date(), 'yyyy-MM-dd');
-      
-      // Only count real goals for progress calculation
-      const realGoals = todaysGoals.filter(goal => !goal.id.startsWith('habit-'));
-      const completedGoals = realGoals.filter(goal => goal.completed).length;
-      const progress = realGoals.length > 0 ? completedGoals / realGoals.length : 0;
-      
-      // Update or create today's plan
-      const planIndex = dailyPlans.findIndex(plan => plan.date === today);
-      
-      let updatedPlans;
-      if (planIndex >= 0) {
-        // Update existing plan
-        updatedPlans = [...dailyPlans];
-        updatedPlans[planIndex] = {
-          ...updatedPlans[planIndex],
-          goals: todaysGoals,
-          goalsCompleted: completedGoals,
-          progress,
-        };
-      } else {
-        // Create new plan
-        const newPlan: DailyPlan = {
-          date: today,
-          goals: todaysGoals,
-          goalsCompleted: completedGoals,
-          progress,
-          quote: quoteOfTheDay,
-        };
-        updatedPlans = [...dailyPlans, newPlan];
-      }
-      
-      setDailyPlans(updatedPlans);
-      await AsyncStorage.setItem('dailyPlans', JSON.stringify(updatedPlans));
-    };
-    
-    updateTodaysPlan();
-  }, [todaysGoals, loaded]);
-  
-  // Persist data whenever it changes
-  useEffect(() => {
-    if (!loaded) return;
-    
-    const saveData = async () => {
-      await AsyncStorage.setItem('goalsLibrary', JSON.stringify(goalsLibrary));
-      await AsyncStorage.setItem('dailyEntries', JSON.stringify(dailyEntries));
-      await AsyncStorage.setItem('plannerSettings', JSON.stringify(plannerSettings));
-      await AsyncStorage.setItem('habits', JSON.stringify(habits));
-      await AsyncStorage.setItem('habitEntries', JSON.stringify(habitEntries));
-      await AsyncStorage.setItem('longTermGoals', JSON.stringify(longTermGoals));
-      await AsyncStorage.setItem('journalEntries', JSON.stringify(journalEntries));
-      await AsyncStorage.setItem('sleepData', JSON.stringify(sleepData));
-      await AsyncStorage.setItem('socialMediaData', JSON.stringify(socialMediaData));
-      await AsyncStorage.setItem('productiveActivities', JSON.stringify(productiveActivities));
-      await AsyncStorage.setItem('activityEntries', JSON.stringify(activityEntries));
-      await AsyncStorage.setItem('dashboardMetrics', JSON.stringify(dashboardMetrics));
-      
-      // Save Social Media Wellness data
-      await AsyncStorage.setItem('trackedApps', JSON.stringify(trackedApps));
-      await AsyncStorage.setItem('appUsageSessions', JSON.stringify(appUsageSessions));
-      await AsyncStorage.setItem('intentPromptResponses', JSON.stringify(intentPromptResponses));
-      await AsyncStorage.setItem('socialMediaReflections', JSON.stringify(socialMediaReflections));
-      await AsyncStorage.setItem('usageAlerts', JSON.stringify(usageAlerts));
-      await AsyncStorage.setItem('digitalWellnessGoals', JSON.stringify(digitalWellnessGoals));
-      
-      if (userProfile) {
-        await AsyncStorage.setItem('userProfile', JSON.stringify(userProfile));
-      }
-      await AsyncStorage.setItem('achievements', JSON.stringify(achievements));
-    };
-    
-    saveData();
-  }, [
-    goalsLibrary, dailyEntries, plannerSettings, habits, habitEntries, 
-    longTermGoals, journalEntries, userProfile, achievements, sleepData, 
-    socialMediaData, productiveActivities, activityEntries, dashboardMetrics,
-    trackedApps, appUsageSessions, intentPromptResponses, socialMediaReflections,
-    usageAlerts, digitalWellnessGoals, loaded
-  ]);
-  
-  // Add a new goal
-  const addGoal = (data: { 
+  const loadAllData = async () => {
+    try {
+      const [
+        savedGoals,
+        savedPlans,
+        savedWorkouts,
+        savedEntries,
+        savedSettings,
+        savedHabits,
+        savedHabitEntries,
+        savedLongTermGoals,
+        savedJournalEntries,
+        savedUserProfile,
+        savedAchievements,
+        savedDailyChallenge,
+        savedSleepData,
+        savedSocialMediaData,
+        savedTrackedApps,
+        savedAppUsageSessions,
+        savedIntentPromptResponses,
+        savedSocialMediaReflections,
+        savedUsageAlerts,
+        savedDigitalWellnessGoals,
+        savedProductiveActivities,
+        savedActivityEntries,
+        savedDashboardMetrics,
+      ] = await Promise.all([
+        loadData(STORAGE_KEYS.GOALS_LIBRARY, []),
+        loadData(STORAGE_KEYS.DAILY_PLANS, []),
+        loadData(STORAGE_KEYS.WORKOUTS, []),
+        loadData(STORAGE_KEYS.DAILY_ENTRIES, []),
+        loadData(STORAGE_KEYS.PLANNER_SETTINGS, { customColumns: [], autoFillEnabled: true }),
+        loadData(STORAGE_KEYS.HABITS, []),
+        loadData(STORAGE_KEYS.HABIT_ENTRIES, []),
+        loadData(STORAGE_KEYS.LONG_TERM_GOALS, []),
+        loadData(STORAGE_KEYS.JOURNAL_ENTRIES, []),
+        loadData(STORAGE_KEYS.USER_PROFILE, DEFAULT_USER_PROFILE),
+        loadData(STORAGE_KEYS.ACHIEVEMENTS, []),
+        loadData(STORAGE_KEYS.DAILY_CHALLENGE, null),
+        loadData(STORAGE_KEYS.SLEEP_DATA, []),
+        loadData(STORAGE_KEYS.SOCIAL_MEDIA_DATA, []),
+        loadData(STORAGE_KEYS.TRACKED_APPS, []),
+        loadData(STORAGE_KEYS.APP_USAGE_SESSIONS, []),
+        loadData(STORAGE_KEYS.INTENT_PROMPT_RESPONSES, []),
+        loadData(STORAGE_KEYS.SOCIAL_MEDIA_REFLECTIONS, []),
+        loadData(STORAGE_KEYS.USAGE_ALERTS, []),
+        loadData(STORAGE_KEYS.DIGITAL_WELLNESS_GOALS, []),
+        loadData(STORAGE_KEYS.PRODUCTIVE_ACTIVITIES, []),
+        loadData(STORAGE_KEYS.ACTIVITY_ENTRIES, []),
+        loadData(STORAGE_KEYS.DASHBOARD_METRICS, DEFAULT_DASHBOARD_METRICS),
+      ]);
+
+      setGoalsLibrary(savedGoals);
+      setDailyPlans(savedPlans);
+      setWorkouts(savedWorkouts);
+      setDailyEntries(savedEntries);
+      setPlannerSettings(savedSettings);
+      setHabits(savedHabits);
+      setHabitEntries(savedHabitEntries);
+      setLongTermGoals(savedLongTermGoals);
+      setJournalEntries(savedJournalEntries);
+      setUserProfile(savedUserProfile);
+      setAchievements(savedAchievements);
+      setDailyChallenge(savedDailyChallenge);
+      setSleepData(savedSleepData);
+      setSocialMediaData(savedSocialMediaData);
+      setTrackedApps(savedTrackedApps);
+      setAppUsageSessions(savedAppUsageSessions);
+      setIntentPromptResponses(savedIntentPromptResponses);
+      setSocialMediaReflections(savedSocialMediaReflections);
+      setUsageAlerts(savedUsageAlerts);
+      setDigitalWellnessGoals(savedDigitalWellnessGoals);
+      setProductiveActivities(savedProductiveActivities);
+      setActivityEntries(savedActivityEntries);
+      setDashboardMetrics(savedDashboardMetrics);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    }
+  };
+
+  // Goal management
+  const addGoal = ({ title, description, isAutomatic = false, addToToday = false }: { 
     title: string; 
     description?: string; 
+    isAutomatic?: boolean;
     addToToday?: boolean;
   }) => {
     const newGoal: Goal = {
       id: generateId(),
-      title: data.title,
-      description: data.description || '',
+      title,
+      description,
+      completed: false,
+      isAutomatic,
+      hasTimer: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    setGoalsLibrary(prev => [...prev, newGoal]);
+
+    // Add to today's plan if requested
+    if (addToToday) {
+      addGoalToDay(today, newGoal);
+    }
+
+    return newGoal;
+  };
+
+  const updateGoal = (goalId: string, updates: Partial<Goal>) => {
+    setGoalsLibrary(prev => 
+      prev.map(goal => 
+        goal.id === goalId ? { ...goal, ...updates } : goal
+      )
+    );
+
+    // Update goal in any daily plans
+    setDailyPlans(prev => 
+      prev.map(plan => ({
+        ...plan,
+        goals: plan.goals.map(goal => 
+          goal.id === goalId ? { ...goal, ...updates } : goal
+        ),
+      }))
+    );
+  };
+
+  const deleteGoal = (goalId: string) => {
+    setGoalsLibrary(prev => prev.filter(goal => goal.id !== goalId));
+
+    // Remove goal from any daily plans
+    setDailyPlans(prev => 
+      prev.map(plan => ({
+        ...plan,
+        goals: plan.goals.filter(goal => goal.id !== goalId),
+      }))
+    );
+  };
+
+  const getGoalById = (goalId: string) => {
+    // First check today's goals
+    const todayGoal = todaysGoals.find(goal => goal.id === goalId);
+    if (todayGoal) return todayGoal;
+
+    // Then check the library
+    return goalsLibrary.find(goal => goal.id === goalId);
+  };
+
+  const completeGoal = (goalId: string) => {
+    setDailyPlans(prev => 
+      prev.map(plan => {
+        const updatedGoals = plan.goals.map(goal => 
+          goal.id === goalId ? { ...goal, completed: true } : goal
+        );
+        
+        const goalsCompleted = updatedGoals.filter(goal => goal.completed).length;
+        const progress = updatedGoals.length > 0 ? goalsCompleted / updatedGoals.length : 0;
+        
+        return {
+          ...plan,
+          goals: updatedGoals,
+          goalsCompleted,
+          progress,
+        };
+      })
+    );
+
+    // Award XP for completing a goal
+    awardXP(XP_REWARDS.GOAL_COMPLETED, 'Goal completed');
+  };
+
+  const uncompleteGoal = (goalId: string) => {
+    setDailyPlans(prev => 
+      prev.map(plan => {
+        const updatedGoals = plan.goals.map(goal => 
+          goal.id === goalId ? { ...goal, completed: false } : goal
+        );
+        
+        const goalsCompleted = updatedGoals.filter(goal => goal.completed).length;
+        const progress = updatedGoals.length > 0 ? goalsCompleted / updatedGoals.length : 0;
+        
+        return {
+          ...plan,
+          goals: updatedGoals,
+          goalsCompleted,
+          progress,
+        };
+      })
+    );
+  };
+
+  const setTimerForGoal = (goalId: string) => {
+    // Navigate to timer screen
+    // This is handled by the component that calls this function
+  };
+
+  const scheduleNotification = async (goalId: string, config: NotificationConfig) => {
+    const goal = getGoalById(goalId);
+    if (!goal) return;
+
+    try {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        if (status !== 'granted') {
+          throw new Error('Notification permission not granted');
+        }
+      }
+
+      const trigger = config.type === 'timer' 
+        ? { seconds: config.seconds }
+        : new Date(Date.now() + config.seconds * 1000);
+
+      const notificationId = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: config.type === 'timer' ? 'Timer Completed' : 'Reminder',
+          body: `${goal.title}`,
+          data: { goalId },
+        },
+        trigger,
+      });
+
+      // Update goal to indicate it has a timer
+      updateGoal(goalId, { hasTimer: true });
+
+      return notificationId;
+    } catch (error) {
+      console.error('Error scheduling notification:', error);
+      throw error;
+    }
+  };
+
+  const updateGoalSchedule = (goalId: string, schedule: { start: string; end: string }) => {
+    // Find which day this goal belongs to
+    const goalDate = new Date(schedule.start).toISOString().split('T')[0];
+    
+    setDailyPlans(prev => 
+      prev.map(plan => {
+        if (plan.date !== goalDate) return plan;
+        
+        const updatedGoals = plan.goals.map(goal => 
+          goal.id === goalId ? { ...goal, scheduledTime: schedule } : goal
+        );
+        
+        return {
+          ...plan,
+          goals: updatedGoals,
+        };
+      })
+    );
+  };
+
+  const toggleAutomaticGoal = (goalId: string) => {
+    setGoalsLibrary(prev => 
+      prev.map(goal => 
+        goal.id === goalId ? { ...goal, isAutomatic: !goal.isAutomatic } : goal
+      )
+    );
+  };
+
+  const getAverageProgress = (startDate?: Date, endDate?: Date) => {
+    let relevantPlans = dailyPlans;
+    
+    if (startDate && endDate) {
+      relevantPlans = dailyPlans.filter(plan => {
+        const planDate = new Date(plan.date);
+        return isWithinInterval(planDate, { start: startDate, end: endDate });
+      });
+    }
+    
+    if (relevantPlans.length === 0) return 0;
+    
+    const totalProgress = relevantPlans.reduce((sum, plan) => sum + plan.progress, 0);
+    return totalProgress / relevantPlans.length;
+  };
+
+  // Future day planning
+  const addGoalToFutureDay = (date: string, goalId: string) => {
+    // Get the goal from library
+    const goal = goalsLibrary.find(g => g.id === goalId);
+    if (!goal) return;
+    
+    // Check if plan exists for this date, create if not
+    let plan = dailyPlans.find(p => p.date === date);
+    if (!plan) {
+      plan = createDailyPlan(date);
+    }
+    
+    // Check if goal is already in the plan
+    const goalExists = plan.goals.some(g => g.id === goalId);
+    if (goalExists) return;
+    
+    // Add goal to the plan
+    setDailyPlans(prev => 
+      prev.map(p => {
+        if (p.date !== date) return p;
+        
+        const newGoal = { ...goal, completed: false };
+        const updatedGoals = [...p.goals, newGoal];
+        
+        return {
+          ...p,
+          goals: updatedGoals,
+        };
+      })
+    );
+  };
+
+  const addActivityToFutureDay = (date: string, activityId: string) => {
+    // Get the activity
+    const activity = productiveActivities.find(a => a.id === activityId);
+    if (!activity) return;
+    
+    // Check if plan exists for this date, create if not
+    let plan = dailyPlans.find(p => p.date === date);
+    if (!plan) {
+      plan = createDailyPlan(date);
+    }
+    
+    // Create a goal from the activity
+    const activityGoal: Goal = {
+      id: `activity-${activityId}-${Date.now()}`,
+      title: activity.name,
+      description: activity.description,
       completed: false,
       isAutomatic: false,
       hasTimer: false,
       createdAt: new Date().toISOString(),
     };
     
-    // Add to goals library
-    setGoalsLibrary(prev => [...prev, newGoal]);
+    // Add to the plan
+    setDailyPlans(prev => 
+      prev.map(p => {
+        if (p.date !== date) return p;
+        
+        return {
+          ...p,
+          goals: [...p.goals, activityGoal],
+        };
+      })
+    );
     
-    // Add to today's goals if requested
-    if (data.addToToday) {
-      setTodaysGoals(prev => [...prev, newGoal]);
-    }
-  };
-  
-  // Update an existing goal
-  const updateGoal = (goalId: string, data: {
-    title: string;
-    description?: string;
-  }) => {
-    // Update in goals library
-    setGoalsLibrary(prev => prev.map(goal => 
-      goal.id === goalId 
-        ? { ...goal, ...data } 
-        : goal
-    ));
+    // Create activity entry
+    const newEntry: ActivityEntry = {
+      id: generateId(),
+      activityId,
+      date,
+      duration: activity.estimatedDuration || 0,
+      completed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
     
-    // Update in today's goals if present
-    setTodaysGoals(prev => prev.map(goal => 
-      goal.id === goalId 
-        ? { ...goal, title: data.title, description: data.description || '' } 
-        : goal
-    ));
-  };
-  
-  // Delete a goal
-  const deleteGoal = (goalId: string) => {
-    // Remove from goals library
-    setGoalsLibrary(prev => prev.filter(goal => goal.id !== goalId));
-    
-    // Remove from today's goals if present
-    setTodaysGoals(prev => prev.filter(goal => goal.id !== goalId));
-  };
-  
-  // Mark a goal as complete
-  const completeGoal = (goalId: string) => {
-    setTodaysGoals(prev => prev.map(goal => 
-      goal.id === goalId 
-        ? { ...goal, completed: true } 
-        : goal
-    ));
-    
-    // Award XP only for real goals, not habits
-    if (!goalId.startsWith('habit-')) {
-      awardXP(XP_REWARDS.GOAL_SUBTASK_COMPLETED, 'Goal completed');
-    }
-  };
-  
-  // Mark a goal as incomplete
-  const uncompleteGoal = (goalId: string) => {
-    setTodaysGoals(prev => prev.map(goal => 
-      goal.id === goalId 
-        ? { ...goal, completed: false } 
-        : goal
-    ));
-  };
-  
-  // Get a goal by ID
-  const getGoalById = (goalId: string) => {
-    // First check in today's goals
-    const todayGoal = todaysGoals.find(goal => goal.id === goalId);
-    if (todayGoal) return todayGoal;
-    
-    // Then check in goals library
-    return goalsLibrary.find(goal => goal.id === goalId);
-  };
-  
-  // Calculate average progress - Only count real goals, not habits
-  const getAverageProgress = (startDate?: Date, endDate?: Date) => {
-    if (dailyPlans.length === 0) return 0;
-    
-    let filteredPlans;
-    
-    if (startDate && endDate) {
-      filteredPlans = dailyPlans.filter(plan => {
-        const planDate = new Date(plan.date);
-        return isWithinInterval(planDate, { 
-          start: startOfDay(startDate), 
-          end: endOfDay(endDate) 
-        });
-      });
-    } else {
-      filteredPlans = dailyPlans;
-    }
-    
-    if (filteredPlans.length === 0) return 0;
-    
-    // Calculate progress based on real goals only
-    const progressValues = filteredPlans.map(plan => {
-      const realGoals = plan.goals.filter(goal => !goal.id.startsWith('habit-'));
-      if (realGoals.length === 0) return 0;
-      return realGoals.filter(goal => goal.completed).length / realGoals.length;
-    });
-    
-    const total = progressValues.reduce((sum, progress) => sum + progress, 0);
-    return total / progressValues.length;
-  };
-  
-  // Mark a goal for timer
-  const setTimerForGoal = (goalId: string) => {
-    // Open the set timer modal
-    router.push({
-      pathname: '/modals/set-timer',
-      params: { goalId }
-    });
-  };
-  
-  // Schedule a notification
-  const scheduleNotification = async (goalId: string, config: NotificationConfig) => {
-    // Skip on web
-    if (Platform.OS === 'web') return;
-    
-    const goal = getGoalById(goalId);
-    if (!goal) return;
-    
-    // Calculate trigger time
-    const triggerTime = new Date();
-    triggerTime.setSeconds(triggerTime.getSeconds() + config.seconds);
-    
-    try {
-      const notificationId = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: config.type === 'timer' ? 'Timer Complete' : 'Reminder',
-          body: `Time to work on: ${goal.title}`,
-          sound: true,
-        },
-        trigger: triggerTime,
-      });
-      
-      // Mark the goal as having a timer
-      setTodaysGoals(prev => prev.map(g => 
-        g.id === goalId 
-          ? { ...g, hasTimer: true } 
-          : g
-      ));
-      
-      return notificationId;
-    } catch (error) {
-      console.error('Error scheduling notification:', error);
-    }
-  };
-  
-  // Update goal schedule
-  const updateGoalSchedule = (goalId: string, schedule: { start: string; end: string }) => {
-    setTodaysGoals(prev => prev.map(goal => 
-      goal.id === goalId 
-        ? { ...goal, scheduledTime: schedule }
-        : goal
-    ));
-  };
-  
-  // Register for push notifications (if not web)
-  const registerForPushNotificationsAsync = async () => {
-    if (Platform.OS === 'web') return;
-    
-    try {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      
-      if (finalStatus !== 'granted') {
-        console.log('Failed to get push token for push notification!');
-        return;
-      }
-      
-      // Configure notification handling
-      Notifications.setNotificationHandler({
-        handleNotification: async () => ({
-          shouldShowAlert: true,
-          shouldPlaySound: true,
-          shouldSetBadge: false,
-        }),
-      });
-    } catch (error) {
-      console.error('Error registering for push notifications:', error);
-    }
+    setActivityEntries(prev => [...prev, newEntry]);
   };
 
-  // Schedule quiz reminders
-  const scheduleQuizReminders = async () => {
-    if (Platform.OS === 'web' || !userProfile?.preferences.notifications) return;
-    
-    try {
-      // Cancel existing reminders
-      await Notifications.cancelAllScheduledNotificationsAsync();
-      
-      // Schedule morning quiz reminder (8:00 AM)
-      const morningTime = new Date();
-      morningTime.setHours(8, 0, 0, 0);
-      
-      // If it's already past 8 AM, schedule for tomorrow
-      if (morningTime.getTime() < Date.now()) {
-        morningTime.setDate(morningTime.getDate() + 1);
-      }
-      
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Morning Planning',
-          body: 'Start your day with intention by completing your morning planning.',
-          sound: true,
-        },
-        trigger: {
-          hour: 8,
-          minute: 0,
-          repeats: true,
-        },
-      });
-      
-      // Schedule evening quiz reminder (9:00 PM)
-      const eveningTime = new Date();
-      eveningTime.setHours(21, 0, 0, 0);
-      
-      // If it's already past 9 PM, schedule for tomorrow
-      if (eveningTime.getTime() < Date.now()) {
-        eveningTime.setDate(eveningTime.getDate() + 1);
-      }
-      
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Evening Reflection',
-          body: 'Take a moment to reflect on your day and plan for tomorrow.',
-          sound: true,
-        },
-        trigger: {
-          hour: 21,
-          minute: 0,
-          repeats: true,
-        },
-      });
-      
-      console.log('Quiz reminders scheduled successfully');
-    } catch (error) {
-      console.error('Error scheduling quiz reminders:', error);
-    }
+  const getDailyPlan = (date: string) => {
+    return dailyPlans.find(plan => plan.date === date);
   };
 
-  // Workout functions
-  const addWorkout = (data: {
-    name: string;
-    description?: string;
-    exercises: Exercise[];
-    duration: number;
-  }) => {
+  const createDailyPlan = (date: string) => {
+    // Check if plan already exists
+    const existingPlan = dailyPlans.find(plan => plan.date === date);
+    if (existingPlan) return existingPlan;
+    
+    // Create new plan
+    const newPlan: DailyPlan = {
+      date,
+      goals: [],
+      goalsCompleted: 0,
+      progress: 0,
+    };
+    
+    // Add automatic goals
+    const automaticGoals = goalsLibrary.filter(goal => goal.isAutomatic);
+    if (automaticGoals.length > 0) {
+      newPlan.goals = automaticGoals.map(goal => ({
+        ...goal,
+        completed: false,
+      }));
+    }
+    
+    // Add active habits as goals
+    const activeHabits = habits.filter(habit => habit.isActive);
+    if (activeHabits.length > 0) {
+      const habitGoals = activeHabits.map(habit => ({
+        id: `habit-${habit.id}`,
+        title: habit.title,
+        description: habit.description,
+        completed: false,
+        isAutomatic: true,
+        hasTimer: false,
+        createdAt: new Date().toISOString(),
+      }));
+      
+      newPlan.goals = [...newPlan.goals, ...habitGoals];
+    }
+    
+    // Add to daily plans
+    setDailyPlans(prev => [...prev, newPlan]);
+    
+    return newPlan;
+  };
+
+  // Daily plan management
+  const createTodaysPlan = () => {
+    // Check if today's plan already exists
+    if (todaysPlan) return;
+    
+    // Create new plan for today
+    const newPlan: DailyPlan = {
+      date: today,
+      goals: [],
+      goalsCompleted: 0,
+      progress: 0,
+      quote: quoteOfTheDay,
+    };
+    
+    // Add automatic goals
+    const automaticGoals = goalsLibrary.filter(goal => goal.isAutomatic);
+    if (automaticGoals.length > 0) {
+      newPlan.goals = automaticGoals.map(goal => ({
+        ...goal,
+        completed: false,
+      }));
+    }
+    
+    // Add active habits as goals
+    const activeHabits = habits.filter(habit => habit.isActive);
+    if (activeHabits.length > 0) {
+      const habitGoals = activeHabits.map(habit => ({
+        id: `habit-${habit.id}`,
+        title: habit.title,
+        description: habit.description,
+        completed: false,
+        isAutomatic: true,
+        hasTimer: false,
+        createdAt: new Date().toISOString(),
+      }));
+      
+      newPlan.goals = [...newPlan.goals, ...habitGoals];
+    }
+    
+    // Add to daily plans
+    setDailyPlans(prev => [...prev, newPlan]);
+  };
+
+  const addGoalToDay = (date: string, goal: Goal) => {
+    setDailyPlans(prev => {
+      // Find the plan for the specified date
+      const planIndex = prev.findIndex(plan => plan.date === date);
+      
+      if (planIndex === -1) {
+        // Create a new plan if it doesn't exist
+        const newPlan: DailyPlan = {
+          date,
+          goals: [{ ...goal, completed: false }],
+          goalsCompleted: 0,
+          progress: 0,
+        };
+        return [...prev, newPlan];
+      } else {
+        // Update existing plan
+        const updatedPlans = [...prev];
+        const plan = { ...updatedPlans[planIndex] };
+        
+        // Check if goal already exists in the plan
+        const goalExists = plan.goals.some(g => g.id === goal.id);
+        if (!goalExists) {
+          plan.goals = [...plan.goals, { ...goal, completed: false }];
+        }
+        
+        updatedPlans[planIndex] = plan;
+        return updatedPlans;
+      }
+    });
+  };
+
+  // Workouts
+  const addWorkout = (workout: Omit<Workout, 'id' | 'createdAt'>) => {
     const newWorkout: Workout = {
       id: generateId(),
-      name: data.name,
-      description: data.description,
-      exercises: data.exercises,
-      duration: data.duration,
+      ...workout,
       createdAt: new Date().toISOString(),
     };
-
-    setWorkouts(prev => {
-      const updated = [...prev, newWorkout];
-      AsyncStorage.setItem('workouts', JSON.stringify(updated));
-      return updated;
-    });
+    
+    setWorkouts(prev => [...prev, newWorkout]);
   };
 
-  const updateWorkout = (workoutId: string, data: {
-    name: string;
-    description?: string;
-    exercises: Exercise[];
-    duration: number;
-  }) => {
-    setWorkouts(prev => {
-      const updated = prev.map(workout =>
-        workout.id === workoutId
-          ? { ...workout, ...data }
-          : workout
-      );
-      AsyncStorage.setItem('workouts', JSON.stringify(updated));
-      return updated;
-    });
+  const updateWorkout = (workoutId: string, updates: Partial<Workout>) => {
+    setWorkouts(prev => 
+      prev.map(workout => 
+        workout.id === workoutId ? { ...workout, ...updates } : workout
+      )
+    );
   };
 
   const deleteWorkout = (workoutId: string) => {
-    setWorkouts(prev => {
-      const updated = prev.filter(workout => workout.id !== workoutId);
-      AsyncStorage.setItem('workouts', JSON.stringify(updated));
-      return updated;
-    });
+    setWorkouts(prev => prev.filter(workout => workout.id !== workoutId));
   };
 
-  const getWorkoutById = (workoutId: string) => {
-    return workouts.find(workout => workout.id === workoutId);
-  };
-
-  // Daily Planner functions
+  // Daily Planner
   const getDailyEntry = (date: string) => {
     return dailyEntries.find(entry => entry.date === date);
   };
@@ -1159,21 +953,13 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     setDailyEntries(prev => {
       const entryIndex = prev.findIndex(entry => entry.date === date);
       
-      if (entryIndex >= 0) {
-        const updated = [...prev];
-        updated[entryIndex] = {
-          ...updated[entryIndex],
-          ...updates,
-          updatedAt: new Date().toISOString(),
-        };
-        return updated;
-      } else {
-        // Create new entry if it doesn't exist
-        const newEntry = {
-          id: generateId(),
+      if (entryIndex === -1) {
+        // Create new entry
+        const newEntry: DailyEntry = {
+          id: `entry-${date}`,
           date,
           goals: [],
-          sleep: { hours: 0, quality: 'fair' as const },
+          sleep: { hours: 0, quality: 'fair' },
           meals: {},
           workouts: { completed: [], duration: 0 },
           thoughts: '',
@@ -1184,6 +970,15 @@ export const AppProvider = ({ children }: AppProviderProps) => {
           ...updates,
         };
         return [...prev, newEntry];
+      } else {
+        // Update existing entry
+        const updatedEntries = [...prev];
+        updatedEntries[entryIndex] = {
+          ...updatedEntries[entryIndex],
+          ...updates,
+          updatedAt: new Date().toISOString(),
+        };
+        return updatedEntries;
       }
     });
   };
@@ -1195,102 +990,142 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     }));
   };
 
-  const updateCustomColumn = (columnId: string, updates: Partial<CustomColumn>) => {
-    setPlannerSettings(prev => ({
-      ...prev,
-      customColumns: prev.customColumns.map(col =>
-        col.id === columnId ? { ...col, ...updates } : col
-      ),
-    }));
-  };
-
   const removeCustomColumn = (columnId: string) => {
     setPlannerSettings(prev => ({
       ...prev,
       customColumns: prev.customColumns.filter(col => col.id !== columnId),
     }));
-    
-    // Remove the custom field from all entries
-    setDailyEntries(prev =>
-      prev.map(entry => {
-        const { [columnId]: removed, ...restCustomFields } = entry.customFields;
-        return {
-          ...entry,
-          customFields: restCustomFields,
-          updatedAt: new Date().toISOString(),
-        };
-      })
-    );
   };
 
   const updatePlannerSettings = (settings: Partial<DailyPlannerSettings>) => {
-    setPlannerSettings(prev => ({ ...prev, ...settings }));
+    setPlannerSettings(prev => ({
+      ...prev,
+      ...settings,
+    }));
   };
 
-  const getEntriesForMonth = (year: number, month: number) => {
-    const monthStart = startOfMonth(new Date(year, month - 1));
-    const monthEnd = endOfMonth(new Date(year, month - 1));
-    
-    return dailyEntries.filter(entry => {
-      const entryDate = new Date(entry.date);
-      return isWithinInterval(entryDate, { start: monthStart, end: monthEnd });
-    });
-  };
-
-  // New feature functions
-  const addHabit = (data: {
-    title: string;
-    description?: string;
-    category: string;
-    frequency: 'daily' | 'weekly';
-    targetCount?: number;
-    unit?: string;
-    color: string;
-    icon: string;
-  }) => {
+  // Habits
+  const addHabit = (habitData: Omit<Habit, 'id' | 'createdAt' | 'updatedAt'>) => {
     const newHabit: Habit = {
       id: generateId(),
-      title: data.title,
-      description: data.description,
-      category: data.category as any,
-      frequency: data.frequency,
-      targetCount: data.targetCount,
-      unit: data.unit,
-      color: data.color,
-      icon: data.icon,
+      ...habitData,
       isActive: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     
     setHabits(prev => [...prev, newHabit]);
+    
+    // Add habit to today's plan
+    if (todaysPlan) {
+      const habitGoal: Goal = {
+        id: `habit-${newHabit.id}`,
+        title: newHabit.title,
+        description: newHabit.description,
+        completed: false,
+        isAutomatic: true,
+        hasTimer: false,
+        createdAt: new Date().toISOString(),
+      };
+      
+      setDailyPlans(prev => 
+        prev.map(plan => {
+          if (plan.date !== today) return plan;
+          
+          return {
+            ...plan,
+            goals: [...plan.goals, habitGoal],
+          };
+        })
+      );
+    }
   };
 
   const updateHabit = (habitId: string, updates: Partial<Habit>) => {
-    setHabits(prev => prev.map(habit =>
-      habit.id === habitId
-        ? { ...habit, ...updates, updatedAt: new Date().toISOString() }
-        : habit
-    ));
+    setHabits(prev => 
+      prev.map(habit => 
+        habit.id === habitId ? { ...habit, ...updates, updatedAt: new Date().toISOString() } : habit
+      )
+    );
+    
+    // Update habit in daily plans if title or description changed
+    if (updates.title || updates.description) {
+      setDailyPlans(prev => 
+        prev.map(plan => ({
+          ...plan,
+          goals: plan.goals.map(goal => {
+            if (goal.id === `habit-${habitId}`) {
+              return {
+                ...goal,
+                title: updates.title || goal.title,
+                description: updates.description !== undefined ? updates.description : goal.description,
+              };
+            }
+            return goal;
+          }),
+        }))
+      );
+    }
   };
 
   const deleteHabit = (habitId: string) => {
     setHabits(prev => prev.filter(habit => habit.id !== habitId));
+    
+    // Remove habit from daily plans
+    setDailyPlans(prev => 
+      prev.map(plan => ({
+        ...plan,
+        goals: plan.goals.filter(goal => goal.id !== `habit-${habitId}`),
+      }))
+    );
+    
+    // Remove habit entries
     setHabitEntries(prev => prev.filter(entry => entry.habitId !== habitId));
   };
 
   const toggleHabitCompletion = (habitId: string, date: string) => {
-    const existingEntry = habitEntries.find(
-      entry => entry.habitId === habitId && entry.date === date
-    );
+    // Find existing entry
+    const existingEntry = habitEntries.find(entry => entry.habitId === habitId && entry.date === date);
     
     if (existingEntry) {
       // Toggle existing entry
-      setHabitEntries(prev => prev.map(entry =>
-        entry.id === existingEntry.id
-          ? { ...entry, completed: !entry.completed, completedAt: !entry.completed ? new Date().toISOString() : undefined }
-          : entry
-      ));
+      setHabitEntries(prev => 
+        prev.map(entry => {
+          if (entry.habitId === habitId && entry.date === date) {
+            return {
+              ...entry,
+              completed: !entry.completed,
+              completedAt: !entry.completed ? new Date().toISOString() : undefined,
+            };
+          }
+          return entry;
+        })
+      );
+      
+      // Update corresponding goal in daily plan
+      setDailyPlans(prev => 
+        prev.map(plan => {
+          if (plan.date !== date) return plan;
+          
+          const updatedGoals = plan.goals.map(goal => {
+            if (goal.id === `habit-${habitId}`) {
+              const completed = !existingEntry.completed;
+              return { ...goal, completed };
+            }
+            return goal;
+          });
+          
+          const goalsCompleted = updatedGoals.filter(goal => goal.completed).length;
+          const progress = updatedGoals.length > 0 ? goalsCompleted / updatedGoals.length : 0;
+          
+          return {
+            ...plan,
+            goals: updatedGoals,
+            goalsCompleted,
+            progress,
+          };
+        })
+      );
       
       // Award XP if completing
       if (!existingEntry.completed) {
@@ -1307,20 +1142,41 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       };
       
       setHabitEntries(prev => [...prev, newEntry]);
+      
+      // Update corresponding goal in daily plan
+      setDailyPlans(prev => 
+        prev.map(plan => {
+          if (plan.date !== date) return plan;
+          
+          const updatedGoals = plan.goals.map(goal => {
+            if (goal.id === `habit-${habitId}`) {
+              return { ...goal, completed: true };
+            }
+            return goal;
+          });
+          
+          const goalsCompleted = updatedGoals.filter(goal => goal.completed).length;
+          const progress = updatedGoals.length > 0 ? goalsCompleted / updatedGoals.length : 0;
+          
+          return {
+            ...plan,
+            goals: updatedGoals,
+            goalsCompleted,
+            progress,
+          };
+        })
+      );
+      
+      // Award XP
       awardXP(XP_REWARDS.HABIT_COMPLETED, 'Habit completed');
     }
   };
 
-  const addLongTermGoal = (data: {
-    title: string;
-    description?: string;
-    category: string;
-    priority: 'low' | 'medium' | 'high';
-    deadline?: string;
-    subtasks: string[];
-    color: string;
-  }) => {
-    const subtasks = data.subtasks.map((title, index) => ({
+  // Long-term Goals
+  const addLongTermGoal = (goalData: Omit<LongTermGoal, 'id' | 'createdAt' | 'updatedAt' | 'progress' | 'subtasks'> & { subtasks: string[] }) => {
+    const { subtasks: subtaskTitles, ...rest } = goalData;
+    
+    const subtasks: SubTask[] = subtaskTitles.map((title, index) => ({
       id: generateId(),
       title,
       completed: false,
@@ -1329,15 +1185,10 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     
     const newGoal: LongTermGoal = {
       id: generateId(),
-      title: data.title,
-      description: data.description,
-      category: data.category as any,
-      priority: data.priority,
-      deadline: data.deadline,
-      status: 'not_started',
+      ...rest,
       progress: 0,
       subtasks,
-      color: data.color,
+      status: 'in_progress',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -1346,11 +1197,18 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   };
 
   const updateLongTermGoal = (goalId: string, updates: Partial<LongTermGoal>) => {
-    setLongTermGoals(prev => prev.map(goal =>
-      goal.id === goalId
-        ? { ...goal, ...updates, updatedAt: new Date().toISOString() }
-        : goal
-    ));
+    setLongTermGoals(prev => 
+      prev.map(goal => {
+        if (goal.id === goalId) {
+          return { 
+            ...goal, 
+            ...updates, 
+            updatedAt: new Date().toISOString() 
+          };
+        }
+        return goal;
+      })
+    );
   };
 
   const deleteLongTermGoal = (goalId: string) => {
@@ -1358,467 +1216,135 @@ export const AppProvider = ({ children }: AppProviderProps) => {
   };
 
   const toggleSubtask = (goalId: string, subtaskId: string) => {
-    setLongTermGoals(prev => prev.map(goal => {
-      if (goal.id !== goalId) return goal;
-      
-      const updatedSubtasks = goal.subtasks.map(subtask =>
-        subtask.id === subtaskId
-          ? { 
+    setLongTermGoals(prev => 
+      prev.map(goal => {
+        if (goal.id !== goalId) return goal;
+        
+        const updatedSubtasks = goal.subtasks.map(subtask => {
+          if (subtask.id === subtaskId) {
+            return { 
               ...subtask, 
               completed: !subtask.completed,
-              completedAt: !subtask.completed ? new Date().toISOString() : undefined
-            }
-          : subtask
-      );
-      
-      const completedCount = updatedSubtasks.filter(s => s.completed).length;
-      const progress = updatedSubtasks.length > 0 ? completedCount / updatedSubtasks.length : 0;
-      const status = progress === 1 ? 'completed' : progress > 0 ? 'in_progress' : 'not_started';
-      
-      // Award XP for subtask completion
-      const subtask = goal.subtasks.find(s => s.id === subtaskId);
-      if (subtask && !subtask.completed) {
-        awardXP(XP_REWARDS.GOAL_SUBTASK_COMPLETED, 'Subtask completed');
-      }
-      
-      // Award bonus XP for goal completion
-      if (status === 'completed' && goal.status !== 'completed') {
-        awardXP(XP_REWARDS.GOAL_COMPLETED, 'Long-term goal completed');
-      }
-      
-      return {
-        ...goal,
-        subtasks: updatedSubtasks,
-        progress,
-        status,
-        updatedAt: new Date().toISOString(),
-      };
-    }));
+              completedAt: !subtask.completed ? new Date().toISOString() : undefined,
+            };
+          }
+          return subtask;
+        });
+        
+        const completedSubtasks = updatedSubtasks.filter(subtask => subtask.completed).length;
+        const progress = updatedSubtasks.length > 0 ? completedSubtasks / updatedSubtasks.length : 0;
+        
+        // Check if all subtasks are completed
+        const allCompleted = updatedSubtasks.every(subtask => subtask.completed);
+        const status = allCompleted ? 'completed' : 'in_progress';
+        
+        // Award XP for completing subtask
+        if (updatedSubtasks.find(s => s.id === subtaskId)?.completed) {
+          awardXP(XP_REWARDS.GOAL_SUBTASK_COMPLETED, 'Goal subtask completed');
+        }
+        
+        return {
+          ...goal,
+          subtasks: updatedSubtasks,
+          progress,
+          status,
+          updatedAt: new Date().toISOString(),
+        };
+      })
+    );
   };
 
-  const addJournalEntry = (date: string, data: {
-    type?: 'morning' | 'evening' | 'free';
-    mood: number;
-    energy?: number;
-    stress?: number;
-    reflection?: string;
-    gratitude?: string[];
-    highlights?: string;
-    challenges?: string;
-    tomorrowFocus?: string;
-    sleepHours?: number;
-    sleepQuality?: number;
-    morningFeeling?: string;
-    mainFocus?: string;
-    dailyGoals?: string[];
-    morningGratitude?: string;
-    socialMediaMeaningful?: number;
-    socialMediaDistraction?: boolean;
-    socialMediaAlternatives?: string[];
-  }) => {
+  const addSubtask = (goalId: string, title: string) => {
+    setLongTermGoals(prev => 
+      prev.map(goal => {
+        if (goal.id !== goalId) return goal;
+        
+        const newSubtask: SubTask = {
+          id: generateId(),
+          title,
+          completed: false,
+          order: goal.subtasks.length,
+        };
+        
+        const updatedSubtasks = [...goal.subtasks, newSubtask];
+        const completedSubtasks = updatedSubtasks.filter(subtask => subtask.completed).length;
+        const progress = updatedSubtasks.length > 0 ? completedSubtasks / updatedSubtasks.length : 0;
+        
+        return {
+          ...goal,
+          subtasks: updatedSubtasks,
+          progress,
+          updatedAt: new Date().toISOString(),
+        };
+      })
+    );
+  };
+
+  const removeSubtask = (goalId: string, subtaskId: string) => {
+    setLongTermGoals(prev => 
+      prev.map(goal => {
+        if (goal.id !== goalId) return goal;
+        
+        const updatedSubtasks = goal.subtasks.filter(subtask => subtask.id !== subtaskId);
+        const completedSubtasks = updatedSubtasks.filter(subtask => subtask.completed).length;
+        const progress = updatedSubtasks.length > 0 ? completedSubtasks / updatedSubtasks.length : 0;
+        
+        return {
+          ...goal,
+          subtasks: updatedSubtasks,
+          progress,
+          updatedAt: new Date().toISOString(),
+        };
+      })
+    );
+  };
+
+  // Journal
+  const addJournalEntry = (date: string, entryData: Partial<JournalEntry>) => {
     const newEntry: JournalEntry = {
       id: generateId(),
       date,
-      type: data.type || 'free',
-      mood: data.mood,
-      energy: data.energy || 3,
-      stress: data.stress || 3,
-      reflection: data.reflection,
-      gratitude: data.gratitude,
-      highlights: data.highlights,
-      challenges: data.challenges,
-      tomorrowFocus: data.tomorrowFocus,
-      sleepHours: data.sleepHours,
-      sleepQuality: data.sleepQuality,
-      morningFeeling: data.morningFeeling,
-      mainFocus: data.mainFocus,
-      dailyGoals: data.dailyGoals,
-      morningGratitude: data.morningGratitude,
-      socialMediaMeaningful: data.socialMediaMeaningful,
-      socialMediaDistraction: data.socialMediaDistraction,
+      type: entryData.type || 'free',
+      mood: entryData.mood || 3,
+      energy: entryData.energy || 3,
+      stress: entryData.stress || 3,
+      gratitude: entryData.gratitude || [],
+      reflection: entryData.reflection || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      ...entryData,
     };
     
     setJournalEntries(prev => [...prev, newEntry]);
-    awardXP(XP_REWARDS.JOURNAL_ENTRY, 'Journal entry created');
     
-    // Update quiz availability
-    checkQuizAvailability();
+    // Award XP for journal entry
+    awardXP(XP_REWARDS.JOURNAL_ENTRY, 'Journal entry created');
   };
 
   const updateJournalEntry = (entryId: string, updates: Partial<JournalEntry>) => {
-    setJournalEntries(prev => prev.map(entry =>
-      entry.id === entryId
-        ? { ...entry, ...updates, updatedAt: new Date().toISOString() }
-        : entry
-    ));
+    setJournalEntries(prev => 
+      prev.map(entry => {
+        if (entry.id === entryId) {
+          return { 
+            ...entry, 
+            ...updates, 
+            updatedAt: new Date().toISOString() 
+          };
+        }
+        return entry;
+      })
+    );
   };
 
   const deleteJournalEntry = (entryId: string) => {
     setJournalEntries(prev => prev.filter(entry => entry.id !== entryId));
-    
-    // Update quiz availability
-    checkQuizAvailability();
   };
 
-  // Sleep tracking functions
-  const addSleepData = (data: {
-    date: string;
-    hoursSlept: number;
-    quality: number;
-    bedTime?: string;
-    wakeTime?: string;
-    notes?: string;
-  }) => {
-    const newSleepData: SleepData = {
-      id: generateId(),
-      date: data.date,
-      hoursSlept: data.hoursSlept,
-      quality: data.quality,
-      bedTime: data.bedTime,
-      wakeTime: data.wakeTime,
-      notes: data.notes,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    
-    setSleepData(prev => {
-      // Remove existing entry for the same date
-      const filtered = prev.filter(sleep => sleep.date !== data.date);
-      return [...filtered, newSleepData];
-    });
-  };
-
-  const updateSleepData = (sleepId: string, updates: Partial<SleepData>) => {
-    setSleepData(prev => prev.map(sleep =>
-      sleep.id === sleepId
-        ? { ...sleep, ...updates, updatedAt: new Date().toISOString() }
-        : sleep
-    ));
-  };
-
-  // Social media tracking functions
-  const addSocialMediaUsage = (data: {
-    date: string;
-    totalMinutes: number;
-    apps: { name: string; minutes: number; category: string }[];
-    notes?: string;
-  }) => {
-    const newUsage: SocialMediaUsage = {
-      id: generateId(),
-      date: data.date,
-      totalMinutes: data.totalMinutes,
-      apps: data.apps,
-      notes: data.notes,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    
-    setSocialMediaData(prev => {
-      // Remove existing entry for the same date
-      const filtered = prev.filter(usage => usage.date !== data.date);
-      return [...filtered, newUsage];
-    });
-  };
-
-  const updateSocialMediaUsage = (usageId: string, updates: Partial<SocialMediaUsage>) => {
-    setSocialMediaData(prev => prev.map(usage =>
-      usage.id === usageId
-        ? { ...usage, ...updates, updatedAt: new Date().toISOString() }
-        : usage
-    ));
-  };
-
-  // Productive activities functions
-  const addProductiveActivity = (data: {
-    name: string;
-    description?: string;
-    category: 'mind' | 'body' | 'work' | 'creative' | 'social' | 'other';
-    color: string;
-    icon: string;
-    estimatedDuration?: number;
-  }) => {
-    const newActivity: ProductiveActivity = {
-      id: generateId(),
-      name: data.name,
-      description: data.description,
-      category: data.category,
-      color: data.color,
-      icon: data.icon,
-      estimatedDuration: data.estimatedDuration,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    
-    setProductiveActivities(prev => [...prev, newActivity]);
-  };
-
-  const updateProductiveActivity = (activityId: string, updates: Partial<ProductiveActivity>) => {
-    setProductiveActivities(prev => prev.map(activity =>
-      activity.id === activityId
-        ? { ...activity, ...updates, updatedAt: new Date().toISOString() }
-        : activity
-    ));
-  };
-
-  const deleteProductiveActivity = (activityId: string) => {
-    setProductiveActivities(prev => prev.filter(activity => activity.id !== activityId));
-    setActivityEntries(prev => prev.filter(entry => entry.activityId !== activityId));
-  };
-
-  const addActivityToToday = (activityId: string) => {
-    const activity = productiveActivities.find(a => a.id === activityId);
-    if (!activity) return;
-    
-    const newGoal: Goal = {
-      id: generateId(),
-      title: activity.name,
-      description: activity.description,
-      completed: false,
-      isAutomatic: false,
-      hasTimer: false,
-      createdAt: new Date().toISOString(),
-    };
-    
-    setTodaysGoals(prev => [...prev, newGoal]);
-  };
-
-  // Dashboard metrics functions
-  const updateDashboardMetric = (metricId: string, updates: Partial<DashboardMetric>) => {
-    setDashboardMetrics(prev => prev.map(metric =>
-      metric.id === metricId
-        ? { ...metric, ...updates }
-        : metric
-    ));
-  };
-
-  const toggleMetricPin = (metricId: string) => {
-    setDashboardMetrics(prev => prev.map(metric =>
-      metric.id === metricId
-        ? { ...metric, isPinned: !metric.isPinned }
-        : metric
-    ));
-  };
-
-  const getAnalytics = (): Analytics => {
-    // Calculate habit analytics
-    const totalHabitsCompleted = habitEntries.filter(entry => entry.completed).length;
-    const habitStreakData = habits.map(habit => ({
-      date: new Date().toISOString().split('T')[0],
-      count: habitEntries.filter(entry => entry.habitId === habit.id && entry.completed).length,
-    }));
-    
-    // Calculate mood analytics
-    const moodEntries = journalEntries.filter(entry => entry.mood);
-    const averageMood = moodEntries.length > 0 
-      ? moodEntries.reduce((sum, entry) => sum + entry.mood, 0) / moodEntries.length 
-      : 0;
-    
-    // Calculate sleep analytics
-    const averageHours = sleepData.length > 0
-      ? sleepData.reduce((sum, sleep) => sum + sleep.hoursSlept, 0) / sleepData.length
-      : 0;
-    const averageQuality = sleepData.length > 0
-      ? sleepData.reduce((sum, sleep) => sum + sleep.quality, 0) / sleepData.length
-      : 0;
-    
-    // Calculate social media analytics
-    const totalSocialMinutes = socialMediaData.reduce((sum, usage) => sum + usage.totalMinutes, 0);
-    const dailyAverageSocial = socialMediaData.length > 0 ? totalSocialMinutes / socialMediaData.length : 0;
-    
-    // Calculate intentfulness score
-    const recentIntentPrompts = intentPromptResponses.slice(-20);
-    const intentfulResponses = recentIntentPrompts.filter(
-      response => response.reason !== 'skipped' && response.reason !== 'bored'
-    );
-    
-    const intentfulnessScore = recentIntentPrompts.length > 0
-      ? intentfulResponses.length / recentIntentPrompts.length
-      : 0;
-    
-    // Calculate most common reasons
-    const reasonCounts: Record<string, number> = {};
-    intentPromptResponses.forEach(response => {
-      reasonCounts[response.reason] = (reasonCounts[response.reason] || 0) + 1;
-    });
-    
-    const mostCommonReasons = Object.entries(reasonCounts)
-      .map(([reason, count]) => ({ reason, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 3);
-    
-    return {
-      habits: {
-        totalCompleted: totalHabitsCompleted,
-        streakData: habitStreakData,
-        categoryBreakdown: [],
-        completionRate: habits.length > 0 ? totalHabitsCompleted / habits.length : 0,
-      },
-      goals: {
-        totalCompleted: longTermGoals.filter(goal => goal.status === 'completed').length,
-        inProgress: longTermGoals.filter(goal => goal.status === 'in_progress').length,
-        averageCompletionTime: 0,
-        categoryBreakdown: [],
-      },
-      mood: {
-        averageMood,
-        moodTrend: moodEntries.map(entry => ({ date: entry.date, mood: entry.mood })),
-        energyTrend: moodEntries.map(entry => ({ date: entry.date, energy: entry.energy || 0 })),
-        stressTrend: moodEntries.map(entry => ({ date: entry.date, stress: entry.stress || 0 })),
-      },
-      sleep: {
-        averageHours,
-        averageQuality,
-        sleepTrend: sleepData.map(sleep => ({ 
-          date: sleep.date, 
-          hours: sleep.hoursSlept, 
-          quality: sleep.quality 
-        })),
-        weeklyPattern: [],
-      },
-      socialMedia: {
-        dailyAverage: dailyAverageSocial,
-        weeklyTrend: socialMediaData.map(usage => ({ date: usage.date, minutes: usage.totalMinutes })),
-        appBreakdown: [],
-        streakDaysUnderAverage: 0,
-        intentfulnessScore: Math.round(intentfulnessScore * 100),
-        mostCommonReasons,
-      },
-      productivity: {
-        tasksCompleted: dailyPlans.reduce((sum, plan) => sum + plan.goalsCompleted, 0),
-        averageDailyProgress: getAverageProgress(),
-        mostProductiveDays: [],
-        weeklyTrends: [],
-        activitiesCompleted: [],
-      },
-    };
-  };
-
-  // Social Media Wellness functions
-  const addTrackedApp = (data: Omit<TrackedApp, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newApp: TrackedApp = {
-      id: generateId(),
-      ...data,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    
-    setTrackedApps(prev => [...prev, newApp]);
-  };
-
-  const updateTrackedApp = (appId: string, updates: Partial<TrackedApp>) => {
-    setTrackedApps(prev => prev.map(app =>
-      app.id === appId
-        ? { ...app, ...updates, updatedAt: new Date().toISOString() }
-        : app
-    ));
-  };
-
-  const removeTrackedApp = (appId: string) => {
-    setTrackedApps(prev => prev.filter(app => app.id !== appId));
-    
-    // Also remove related data
-    setAppUsageSessions(prev => prev.filter(session => session.appId !== appId));
-    setIntentPromptResponses(prev => prev.filter(response => response.appId !== appId));
-    setUsageAlerts(prev => prev.filter(alert => alert.appId !== appId));
-  };
-
-  const addAppUsageSession = (data: Omit<AppUsageSession, 'id' | 'createdAt'>) => {
-    const newSession: AppUsageSession = {
-      id: generateId(),
-      ...data,
-      createdAt: new Date().toISOString(),
-    };
-    
-    setAppUsageSessions(prev => [...prev, newSession]);
-  };
-
-  const addIntentPromptResponse = (data: Omit<IntentPromptResponse, 'id' | 'createdAt'>) => {
-    const newResponse: IntentPromptResponse = {
-      id: generateId(),
-      ...data,
-      createdAt: new Date().toISOString(),
-    };
-    
-    setIntentPromptResponses(prev => [...prev, newResponse]);
-  };
-
-  const addSocialMediaReflection = (data: Omit<SocialMediaReflection, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newReflection: SocialMediaReflection = {
-      id: generateId(),
-      ...data,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    
-    setSocialMediaReflections(prev => [...prev, newReflection]);
-  };
-
-  const updateSocialMediaReflection = (reflectionId: string, updates: Partial<SocialMediaReflection>) => {
-    setSocialMediaReflections(prev => prev.map(reflection =>
-      reflection.id === reflectionId
-        ? { ...reflection, ...updates, updatedAt: new Date().toISOString() }
-        : reflection
-    ));
-  };
-
-  const addUsageAlert = (data: Omit<UsageAlert, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newAlert: UsageAlert = {
-      id: generateId(),
-      ...data,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    
-    setUsageAlerts(prev => [...prev, newAlert]);
-  };
-
-  const updateUsageAlert = (alertId: string, updates: Partial<UsageAlert>) => {
-    setUsageAlerts(prev => prev.map(alert =>
-      alert.id === alertId
-        ? { ...alert, ...updates, updatedAt: new Date().toISOString() }
-        : alert
-    ));
-  };
-
-  const removeUsageAlert = (alertId: string) => {
-    setUsageAlerts(prev => prev.filter(alert => alert.id !== alertId));
-  };
-
-  const addDigitalWellnessGoal = (data: Omit<DigitalWellnessGoal, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newGoal: DigitalWellnessGoal = {
-      id: generateId(),
-      ...data,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    
-    setDigitalWellnessGoals(prev => [...prev, newGoal]);
-  };
-
-  const updateDigitalWellnessGoal = (goalId: string, updates: Partial<DigitalWellnessGoal>) => {
-    setDigitalWellnessGoals(prev => prev.map(goal =>
-      goal.id === goalId
-        ? { ...goal, ...updates, updatedAt: new Date().toISOString() }
-        : goal
-    ));
-  };
-
-  const removeDigitalWellnessGoal = (goalId: string) => {
-    setDigitalWellnessGoals(prev => prev.filter(goal => goal.id !== goalId));
-  };
-
+  // Gamification
   const updateUserProfile = (updates: Partial<UserProfile>) => {
     setUserProfile(prev => {
       if (!prev) return null;
-      
-      return {
-        ...prev,
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      };
+      return { ...prev, ...updates, updatedAt: new Date().toISOString() };
     });
   };
 
@@ -1828,61 +1354,30 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     const newTotalXP = userProfile.totalXP + amount;
     const { level, xpToNextLevel } = calculateLevel(newTotalXP);
     
-    const wasLevelUp = level > userProfile.level;
+    const leveledUp = level > userProfile.level;
     
     setUserProfile(prev => {
       if (!prev) return null;
-      
       return {
         ...prev,
-        xp: prev.xp + amount,
-        totalXP: newTotalXP,
         level,
+        xp: newTotalXP - (LEVEL_THRESHOLDS[level] || 0),
         xpToNextLevel,
+        totalXP: newTotalXP,
         updatedAt: new Date().toISOString(),
       };
     });
     
-    // Check for new achievements
-    const newAchievements = checkForNewAchievements(
-      userProfile,
-      habits,
-      habitEntries,
-      longTermGoals,
-      journalEntries
-    );
-    
-    if (newAchievements.length > 0) {
-      setAchievements(prev => [...prev, ...newAchievements]);
-      setUserProfile(prev => {
-        if (!prev) return null;
-        
-        const newBadges = newAchievements.map(achievement => ({
-          id: achievement.id,
-          name: achievement.title,
-          description: achievement.description,
-          icon: achievement.icon,
-          color: achievement.color,
-          unlockedAt: achievement.date,
-          category: 'special' as const,
-        }));
-        
-        return {
-          ...prev,
-          badges: [...prev.badges, ...newBadges],
-        };
-      });
-    }
-    
-    if (wasLevelUp) {
+    // Add achievement for level up
+    if (leveledUp) {
       const levelUpAchievement: Achievement = {
-        id: generateId(),
+        id: `level-up-${level}-${Date.now()}`,
         type: 'level_up',
-        title: `Level ${level} Reached!`,
-        description: `You've reached level ${level}`,
-        xpReward: 0,
+        title: `Level ${level} Achieved!`,
+        description: `You've reached level ${level} on your productivity journey.`,
+        xpReward: 0, // No XP for level up achievement
         icon: 'Star',
-        color: '#FFD700',
+        color: COLORS.warning[500],
         date: new Date().toISOString(),
       };
       
@@ -1890,140 +1385,659 @@ export const AppProvider = ({ children }: AppProviderProps) => {
     }
   };
 
+  const generateTodaysChallenge = () => {
+    const completedChallengeIds = achievements
+      .filter(a => a.type === 'badge_earned')
+      .map(a => a.id);
+    
+    const challenge = DAILY_CHALLENGES[Math.floor(Math.random() * DAILY_CHALLENGES.length)];
+    
+    const newChallenge: DailyChallenge = {
+      id: generateId(),
+      date: today,
+      title: challenge.title,
+      description: challenge.description,
+      type: challenge.type as any,
+      xpReward: challenge.xpReward,
+      completed: false,
+    };
+    
+    setDailyChallenge(newChallenge);
+  };
+
   const completeDailyChallenge = () => {
     if (!dailyChallenge || dailyChallenge.completed) return;
     
-    const updatedChallenge = {
-      ...dailyChallenge,
-      completed: true,
-      completedAt: new Date().toISOString(),
+    setDailyChallenge(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        completed: true,
+        completedAt: new Date().toISOString(),
+      };
+    });
+    
+    // Award XP
+    awardXP(dailyChallenge.xpReward, `Daily challenge completed: ${dailyChallenge.title}`);
+  };
+
+  const scheduleQuizReminders = async () => {
+    try {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        if (status !== 'granted') {
+          return;
+        }
+      }
+      
+      // Cancel existing reminders
+      await Notifications.cancelAllScheduledNotificationsAsync();
+      
+      // Schedule morning reminder (8 AM)
+      const morningDate = new Date();
+      morningDate.setHours(8, 0, 0, 0);
+      if (morningDate.getTime() < Date.now()) {
+        morningDate.setDate(morningDate.getDate() + 1);
+      }
+      
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Morning Planning',
+          body: 'Start your day with intention by completing your morning planning.',
+        },
+        trigger: {
+          hour: 8,
+          minute: 0,
+          repeats: true,
+        },
+      });
+      
+      // Schedule evening reminder (9 PM)
+      const eveningDate = new Date();
+      eveningDate.setHours(21, 0, 0, 0);
+      if (eveningDate.getTime() < Date.now()) {
+        eveningDate.setDate(eveningDate.getDate() + 1);
+      }
+      
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Evening Reflection',
+          body: 'Take a moment to reflect on your day and plan for tomorrow.',
+        },
+        trigger: {
+          hour: 21,
+          minute: 0,
+          repeats: true,
+        },
+      });
+    } catch (error) {
+      console.error('Error scheduling quiz reminders:', error);
+    }
+  };
+
+  // Sleep & Wellness
+  const addSleepData = (sleepData: Omit<SleepData, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const newSleepData: SleepData = {
+      id: generateId(),
+      ...sleepData,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     
-    setDailyChallenge(updatedChallenge);
-    awardXP(dailyChallenge.xpReward, 'Daily challenge completed');
+    setSleepData(prev => [...prev, newSleepData]);
+  };
+
+  const updateSleepData = (sleepId: string, updates: Partial<SleepData>) => {
+    setSleepData(prev => 
+      prev.map(sleep => {
+        if (sleep.id === sleepId) {
+          return { 
+            ...sleep, 
+            ...updates, 
+            updatedAt: new Date().toISOString() 
+          };
+        }
+        return sleep;
+      })
+    );
+  };
+
+  // Social Media Tracking
+  const addTrackedApp = (appData: Omit<TrackedApp, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const newApp: TrackedApp = {
+      id: generateId(),
+      ...appData,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
     
-    // Save to storage
-    AsyncStorage.setItem(`dailyChallenge_${dailyChallenge.date}`, JSON.stringify(updatedChallenge));
+    setTrackedApps(prev => [...prev, newApp]);
+  };
+
+  const updateTrackedApp = (appId: string, updates: Partial<TrackedApp>) => {
+    setTrackedApps(prev => 
+      prev.map(app => {
+        if (app.id === appId) {
+          return { 
+            ...app, 
+            ...updates, 
+            updatedAt: new Date().toISOString() 
+          };
+        }
+        return app;
+      })
+    );
+  };
+
+  const removeTrackedApp = (appId: string) => {
+    setTrackedApps(prev => prev.filter(app => app.id !== appId));
+  };
+
+  const addAppUsageSession = (sessionData: Omit<AppUsageSession, 'id' | 'createdAt'>) => {
+    const newSession: AppUsageSession = {
+      id: generateId(),
+      ...sessionData,
+      createdAt: new Date().toISOString(),
+    };
+    
+    setAppUsageSessions(prev => [...prev, newSession]);
+  };
+
+  const addIntentPromptResponse = (responseData: Omit<IntentPromptResponse, 'id' | 'createdAt'>) => {
+    const newResponse: IntentPromptResponse = {
+      id: generateId(),
+      ...responseData,
+      createdAt: new Date().toISOString(),
+    };
+    
+    setIntentPromptResponses(prev => [...prev, newResponse]);
+  };
+
+  const addSocialMediaReflection = (reflectionData: Omit<SocialMediaReflection, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const newReflection: SocialMediaReflection = {
+      id: generateId(),
+      ...reflectionData,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    setSocialMediaReflections(prev => [...prev, newReflection]);
+  };
+
+  const addUsageAlert = (alertData: Omit<UsageAlert, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const newAlert: UsageAlert = {
+      id: generateId(),
+      ...alertData,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    setUsageAlerts(prev => [...prev, newAlert]);
+  };
+
+  const updateUsageAlert = (alertId: string, updates: Partial<UsageAlert>) => {
+    setUsageAlerts(prev => 
+      prev.map(alert => {
+        if (alert.id === alertId) {
+          return { 
+            ...alert, 
+            ...updates, 
+            updatedAt: new Date().toISOString() 
+          };
+        }
+        return alert;
+      })
+    );
+  };
+
+  const removeUsageAlert = (alertId: string) => {
+    setUsageAlerts(prev => prev.filter(alert => alert.id !== alertId));
+  };
+
+  // Digital Wellness Goals
+  const addDigitalWellnessGoal = (goalData: Omit<DigitalWellnessGoal, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const newGoal: DigitalWellnessGoal = {
+      id: generateId(),
+      ...goalData,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    setDigitalWellnessGoals(prev => [...prev, newGoal]);
+  };
+
+  const updateDigitalWellnessGoal = (goalId: string, updates: Partial<DigitalWellnessGoal>) => {
+    setDigitalWellnessGoals(prev => 
+      prev.map(goal => {
+        if (goal.id === goalId) {
+          return { 
+            ...goal, 
+            ...updates, 
+            updatedAt: new Date().toISOString() 
+          };
+        }
+        return goal;
+      })
+    );
+  };
+
+  // Productive Activities
+  const addProductiveActivity = (activityData: Omit<ProductiveActivity, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const newActivity: ProductiveActivity = {
+      id: generateId(),
+      ...activityData,
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    setProductiveActivities(prev => [...prev, newActivity]);
+  };
+
+  const updateProductiveActivity = (activityId: string, updates: Partial<ProductiveActivity>) => {
+    setProductiveActivities(prev => 
+      prev.map(activity => {
+        if (activity.id === activityId) {
+          return { 
+            ...activity, 
+            ...updates, 
+            updatedAt: new Date().toISOString() 
+          };
+        }
+        return activity;
+      })
+    );
+  };
+
+  const deleteProductiveActivity = (activityId: string) => {
+    setProductiveActivities(prev => prev.filter(activity => activity.id !== activityId));
+    
+    // Remove activity entries
+    setActivityEntries(prev => prev.filter(entry => entry.activityId !== activityId));
+  };
+
+  const addActivityToToday = (activityId: string) => {
+    // Get the activity
+    const activity = productiveActivities.find(a => a.id === activityId);
+    if (!activity) return;
+    
+    // Create a goal from the activity
+    const activityGoal: Goal = {
+      id: `activity-${activityId}-${Date.now()}`,
+      title: activity.name,
+      description: activity.description,
+      completed: false,
+      isAutomatic: false,
+      hasTimer: false,
+      createdAt: new Date().toISOString(),
+    };
+    
+    // Add to today's plan
+    setDailyPlans(prev => 
+      prev.map(plan => {
+        if (plan.date !== today) return plan;
+        
+        return {
+          ...plan,
+          goals: [...plan.goals, activityGoal],
+        };
+      })
+    );
+    
+    // Create activity entry
+    const newEntry: ActivityEntry = {
+      id: generateId(),
+      activityId,
+      date: today,
+      duration: activity.estimatedDuration || 0,
+      completed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    setActivityEntries(prev => [...prev, newEntry]);
+  };
+
+  // Analytics & Dashboard
+  const updateDashboardMetric = (metricId: string, updates: Partial<DashboardMetric>) => {
+    setDashboardMetrics(prev => 
+      prev.map(metric => {
+        if (metric.id === metricId) {
+          return { ...metric, ...updates };
+        }
+        return metric;
+      })
+    );
+  };
+
+  const toggleMetricPin = (metricId: string) => {
+    setDashboardMetrics(prev => 
+      prev.map(metric => {
+        if (metric.id === metricId) {
+          return { ...metric, isPinned: !metric.isPinned };
+        }
+        return metric;
+      })
+    );
+  };
+
+  const getAnalytics = (): Analytics => {
+    // Calculate habit analytics
+    const totalHabitsCompleted = habitEntries.filter(entry => entry.completed).length;
+    const habitCompletionRate = habits.length > 0 
+      ? habitEntries.filter(entry => entry.completed).length / habitEntries.length 
+      : 0;
+    
+    const habitCategoryBreakdown = habits.reduce((acc, habit) => {
+      const category = habit.category;
+      acc[category] = (acc[category] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const habitCategoryData = Object.entries(habitCategoryBreakdown).map(([category, count]) => ({
+      category,
+      count,
+    }));
+    
+    // Calculate goal analytics
+    const completedGoals = longTermGoals.filter(goal => goal.status === 'completed');
+    const inProgressGoals = longTermGoals.filter(goal => goal.status === 'in_progress');
+    
+    const goalCategoryBreakdown = longTermGoals.reduce((acc, goal) => {
+      const category = goal.category;
+      acc[category] = (acc[category] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const goalCategoryData = Object.entries(goalCategoryBreakdown).map(([category, count]) => ({
+      category,
+      count,
+    }));
+    
+    // Calculate mood analytics
+    const moodEntries = journalEntries.filter(entry => entry.mood !== undefined);
+    const averageMood = moodEntries.length > 0
+      ? moodEntries.reduce((sum, entry) => sum + entry.mood, 0) / moodEntries.length
+      : 0;
+    
+    const moodTrend = moodEntries
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(-14)
+      .map(entry => ({
+        date: entry.date,
+        mood: entry.mood,
+      }));
+    
+    const energyTrend = journalEntries
+      .filter(entry => entry.energy !== undefined)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(-14)
+      .map(entry => ({
+        date: entry.date,
+        energy: entry.energy,
+      }));
+    
+    const stressTrend = journalEntries
+      .filter(entry => entry.stress !== undefined)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(-14)
+      .map(entry => ({
+        date: entry.date,
+        stress: entry.stress,
+      }));
+    
+    // Calculate sleep analytics
+    const sleepEntries = sleepData.filter(entry => entry.hoursSlept > 0);
+    const averageSleepHours = sleepEntries.length > 0
+      ? sleepEntries.reduce((sum, entry) => sum + entry.hoursSlept, 0) / sleepEntries.length
+      : 0;
+    
+    const averageSleepQuality = sleepEntries.length > 0
+      ? sleepEntries.reduce((sum, entry) => sum + entry.quality, 0) / sleepEntries.length
+      : 0;
+    
+    const sleepTrend = sleepEntries
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(-14)
+      .map(entry => ({
+        date: entry.date,
+        hours: entry.hoursSlept,
+        quality: entry.quality,
+      }));
+    
+    // Calculate social media analytics
+    const socialEntries = appUsageSessions;
+    const dailyAverageSocial = socialEntries.length > 0
+      ? socialEntries.reduce((sum, entry) => sum + entry.duration, 0) / 
+        [...new Set(socialEntries.map(entry => entry.date))].length
+      : 0;
+    
+    const appBreakdown = trackedApps.map(app => {
+      const appSessions = socialEntries.filter(entry => entry.appId === app.id);
+      const minutes = appSessions.reduce((sum, entry) => sum + entry.duration, 0);
+      return {
+        app: app.displayName,
+        minutes,
+      };
+    }).filter(item => item.minutes > 0)
+      .sort((a, b) => b.minutes - a.minutes);
+    
+    const intentfulResponses = intentPromptResponses.filter(
+      response => response.reason !== 'skipped' && response.reason !== 'bored'
+    );
+    
+    const intentfulnessScore = intentPromptResponses.length > 0
+      ? (intentfulResponses.length / intentPromptResponses.length) * 100
+      : 0;
+    
+    const reasonCounts = intentPromptResponses.reduce((acc, response) => {
+      acc[response.reason] = (acc[response.reason] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const mostCommonReasons = Object.entries(reasonCounts)
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((a, b) => b.count - a.count);
+    
+    // Calculate productivity analytics
+    const tasksCompleted = dailyPlans.reduce(
+      (sum, plan) => sum + plan.goalsCompleted, 
+      0
+    );
+    
+    const averageDailyProgress = dailyPlans.length > 0
+      ? dailyPlans.reduce((sum, plan) => sum + plan.progress, 0) / dailyPlans.length
+      : 0;
+    
+    const weeklyTrends = [];
+    for (let i = 0; i < 4; i++) {
+      const weekEnd = new Date();
+      weekEnd.setDate(weekEnd.getDate() - (i * 7));
+      const weekStart = new Date(weekEnd);
+      weekStart.setDate(weekEnd.getDate() - 6);
+      
+      const weekPlans = dailyPlans.filter(plan => {
+        const planDate = new Date(plan.date);
+        return planDate >= weekStart && planDate <= weekEnd;
+      });
+      
+      const weekProgress = weekPlans.length > 0
+        ? weekPlans.reduce((sum, plan) => sum + plan.progress, 0) / weekPlans.length
+        : 0;
+      
+      weeklyTrends.unshift({
+        week: `Week ${4-i}`,
+        progress: weekProgress,
+      });
+    }
+    
+    return {
+      habits: {
+        totalCompleted: totalHabitsCompleted,
+        streakData: [],
+        categoryBreakdown: habitCategoryData,
+        completionRate: habitCompletionRate,
+      },
+      goals: {
+        totalCompleted: completedGoals.length,
+        inProgress: inProgressGoals.length,
+        averageCompletionTime: 0,
+        categoryBreakdown: goalCategoryData,
+      },
+      mood: {
+        averageMood,
+        moodTrend,
+        energyTrend,
+        stressTrend,
+      },
+      sleep: {
+        averageHours: averageSleepHours,
+        averageQuality: averageSleepQuality,
+        sleepTrend,
+        weeklyPattern: [],
+      },
+      socialMedia: {
+        dailyAverage: dailyAverageSocial,
+        weeklyTrend: [],
+        appBreakdown,
+        streakDaysUnderAverage: 0,
+        intentfulnessScore,
+        mostCommonReasons,
+      },
+      productivity: {
+        tasksCompleted,
+        averageDailyProgress,
+        mostProductiveDays: [],
+        weeklyTrends,
+        activitiesCompleted: [],
+      },
+    };
   };
 
   return (
     <AppContext.Provider
       value={{
+        // Goals
         goalsLibrary,
         todaysGoals,
         dailyPlans,
         progressToday,
+        addGoal,
+        updateGoal,
+        deleteGoal,
+        getGoalById,
+        completeGoal,
+        uncompleteGoal,
+        setTimerForGoal,
+        scheduleNotification,
+        updateGoalSchedule,
+        toggleAutomaticGoal,
+        getAverageProgress,
+        
+        // Future day planning
+        addGoalToFutureDay,
+        addActivityToFutureDay,
+        getDailyPlan,
+        createDailyPlan,
+
+        // Workouts
         workouts,
-        quoteOfTheDay,
+        addWorkout,
+        updateWorkout,
+        deleteWorkout,
+
+        // Daily Planner
         dailyEntries,
         plannerSettings,
+        getDailyEntry,
+        updateDailyEntry,
+        addCustomColumn,
+        removeCustomColumn,
+        updatePlannerSettings,
+
+        // Habits
         habits,
         habitEntries,
+        addHabit,
+        updateHabit,
+        deleteHabit,
+        toggleHabitCompletion,
+
+        // Long-term Goals
         longTermGoals,
+        addLongTermGoal,
+        updateLongTermGoal,
+        deleteLongTermGoal,
+        toggleSubtask,
+        addSubtask,
+        removeSubtask,
+
+        // Journal
         journalEntries,
+        addJournalEntry,
+        updateJournalEntry,
+        deleteJournalEntry,
+        canTakeMorningQuiz,
+        canTakeEveningQuiz,
+
+        // Gamification
         userProfile,
         achievements,
         dailyChallenge,
+        updateUserProfile,
+        awardXP,
+        completeDailyChallenge,
+        scheduleQuizReminders,
+
+        // Sleep & Wellness
         sleepData,
+        addSleepData,
+        updateSleepData,
+
+        // Social Media Tracking
         socialMediaData,
-        productiveActivities,
-        activityEntries,
-        dashboardMetrics,
-        
-        // Social Media Wellness
         trackedApps,
         appUsageSessions,
         intentPromptResponses,
         socialMediaReflections,
         usageAlerts,
+        addTrackedApp,
+        updateTrackedApp,
+        removeTrackedApp,
+        addAppUsageSession,
+        addIntentPromptResponse,
+        addSocialMediaReflection,
+        addUsageAlert,
+        updateUsageAlert,
+        removeUsageAlert,
+
+        // Digital Wellness Goals
         digitalWellnessGoals,
-        
-        // Quiz availability
-        canTakeMorningQuiz,
-        canTakeEveningQuiz,
-        
-        addGoal,
-        updateGoal,
-        deleteGoal,
-        completeGoal,
-        uncompleteGoal,
-        getGoalById,
-        getAverageProgress,
-        setTimerForGoal,
-        scheduleNotification,
-        updateGoalSchedule,
-        
-        addWorkout,
-        updateWorkout,
-        deleteWorkout,
-        getWorkoutById,
-        
-        getDailyEntry,
-        updateDailyEntry,
-        addCustomColumn,
-        updateCustomColumn,
-        removeCustomColumn,
-        updatePlannerSettings,
-        getEntriesForMonth,
-        
-        addHabit,
-        updateHabit,
-        deleteHabit,
-        toggleHabitCompletion,
-        
-        addLongTermGoal,
-        updateLongTermGoal,
-        deleteLongTermGoal,
-        toggleSubtask,
-        
-        addJournalEntry,
-        updateJournalEntry,
-        deleteJournalEntry,
-        
-        addSleepData,
-        updateSleepData,
-        
-        addSocialMediaUsage,
-        updateSocialMediaUsage,
-        
+        addDigitalWellnessGoal,
+        updateDigitalWellnessGoal,
+
+        // Productive Activities
+        productiveActivities,
+        activityEntries,
         addProductiveActivity,
         updateProductiveActivity,
         deleteProductiveActivity,
         addActivityToToday,
-        
+
+        // Analytics & Dashboard
+        dashboardMetrics,
         updateDashboardMetric,
         toggleMetricPin,
         getAnalytics,
-        
-        // Social Media Wellness
-        addTrackedApp,
-        updateTrackedApp,
-        removeTrackedApp,
-        
-        addAppUsageSession,
-        
-        addIntentPromptResponse,
-        
-        addSocialMediaReflection,
-        updateSocialMediaReflection,
-        
-        addUsageAlert,
-        updateUsageAlert,
-        removeUsageAlert,
-        
-        addDigitalWellnessGoal,
-        updateDigitalWellnessGoal,
-        removeDigitalWellnessGoal,
-        
-        updateUserProfile,
-        
-        scheduleQuizReminders,
-        
-        awardXP,
-        completeDailyChallenge,
+
+        // Quotes
+        quoteOfTheDay,
       }}
     >
       {children}
     </AppContext.Provider>
   );
 };
+
+export { AppContext, AppProvider };
