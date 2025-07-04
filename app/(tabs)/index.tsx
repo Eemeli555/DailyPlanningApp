@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Modal, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
@@ -6,7 +6,7 @@ import { Plus, Calendar, CircleCheck as CheckCircle2, Clock, Star, Zap, Trophy, 
 import { useRouter } from 'expo-router';
 import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
 
-import { AppContext } from '@/contexts/AppContext';
+import { useAppContext } from '@/contexts/AppContext';
 import { Goal } from '@/types';
 import { COLORS } from '@/constants/theme';
 import Button from '@/components/Button';
@@ -40,7 +40,7 @@ export default function HomeScreen() {
     updateGoalSchedule,
     dailyPlans,
     getDailyPlan
-  } = useContext(AppContext);
+  } = useAppContext();
   
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -261,7 +261,7 @@ export default function HomeScreen() {
                 <View style={styles.wellnessItem}>
                   <Text style={styles.wellnessLabel}>Sleep</Text>
                   <Text style={styles.wellnessValue}>
-                    {sleepData[sleepData.length - 1]?.hours || 0}h
+                    {sleepData[sleepData.length - 1]?.duration || 0}h
                   </Text>
                 </View>
               )}

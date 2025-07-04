@@ -6,6 +6,7 @@ import { Platform } from 'react-native';
 
 import { 
   Goal, 
+  Task,
   DailyPlan, 
   Workout, 
   NotificationConfig, 
@@ -46,6 +47,7 @@ import { COLORS } from '@/constants/theme';
 
 interface AppContextType {
   // Goals
+  goals: Goal[];
   todaysGoals: Goal[];
   goalsLibrary: Goal[];
   progressToday: number;
@@ -57,6 +59,12 @@ interface AppContextType {
   getGoalById: (goalId: string) => Goal | undefined;
   toggleAutomaticGoal: (goalId: string) => void;
   
+  // Tasks
+  tasks: Task[];
+  addTask: (taskData: Partial<Task>) => string;
+  updateTask: (taskId: string, updates: Partial<Task>) => void;
+  deleteTask: (taskId: string) => void;
+  
   // Daily Plans
   dailyPlans: DailyPlan[];
   getDailyPlan: (date: string) => DailyPlan | undefined;
@@ -64,7 +72,7 @@ interface AppContextType {
   
   // Scheduling
   setTimerForGoal: (goalId: string) => void;
-  updateGoalSchedule: (goalId: string, schedule: { start: string; end: string }) => void;
+  updateGoalSchedule: (goalId: string, schedule: any) => void;
   scheduleNotification: (goalId: string, config: NotificationConfig) => Promise<void>;
   
   // Future Day Planning
@@ -231,10 +239,13 @@ const defaultDashboardMetrics: DashboardMetric[] = [
   },
 ];
 
-const AppContext = createContext<AppContextType | undefined>(undefined);
+// Initialize context with null instead of undefined
+const AppContext = createContext<AppContextType | null>(null);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // State declarations
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [todaysGoals, setTodaysGoals] = useState<Goal[]>([]);
   const [goalsLibrary, setGoalsLibrary] = useState<Goal[]>([]);
   const [dailyPlans, setDailyPlans] = useState<DailyPlan[]>([]);
@@ -283,6 +294,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       // Load all data from AsyncStorage
       const keys = [
+        'goals',
+        'tasks',
         'todaysGoals',
         'goalsLibrary',
         'dailyPlans',
@@ -315,6 +328,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (value) {
           const parsedValue = JSON.parse(value);
           switch (key) {
+            case 'goals':
+              setGoals(parsedValue);
+              break;
+            case 'tasks':
+              setTasks(parsedValue);
+              break;
             case 'todaysGoals':
               setTodaysGoals(parsedValue);
               break;
@@ -403,6 +422,46 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  // Task functions
+  const addTask = (taskData: Partial<Task>): string => {
+    const newTask: Task = {
+      id: generateId(),
+      title: taskData.title || '',
+      description: taskData.description || '',
+      completed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      category: taskData.category || 'personal',
+      priority: taskData.priority || 'medium',
+      dueDate: taskData.dueDate,
+      tags: taskData.tags || [],
+      schedule: taskData.schedule,
+      ...taskData,
+    };
+
+    const updatedTasks = [...tasks, newTask];
+    setTasks(updatedTasks);
+    saveData('tasks', updatedTasks);
+    
+    return newTask.id;
+  };
+
+  const updateTask = (taskId: string, updates: Partial<Task>) => {
+    const updatedTasks = tasks.map(task =>
+      task.id === taskId
+        ? { ...task, ...updates, updatedAt: new Date().toISOString() }
+        : task
+    );
+    setTasks(updatedTasks);
+    saveData('tasks', updatedTasks);
+  };
+
+  const deleteTask = (taskId: string) => {
+    const updatedTasks = tasks.filter(task => task.id !== taskId);
+    setTasks(updatedTasks);
+    saveData('tasks', updatedTasks);
+  };
+
   // Goal functions
   const addGoal = (goalData: Partial<Goal>): string => {
     const newGoal: Goal = {
@@ -421,13 +480,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...goalData,
     };
 
-    const updatedGoals = [...todaysGoals, newGoal];
+    const updatedGoals = [...goals, newGoal];
+    const updatedTodaysGoals = [...todaysGoals, newGoal];
     const updatedLibrary = [...goalsLibrary, newGoal];
     
-    setTodaysGoals(updatedGoals);
+    setGoals(updatedGoals);
+    setTodaysGoals(updatedTodaysGoals);
     setGoalsLibrary(updatedLibrary);
     
-    saveData('todaysGoals', updatedGoals);
+    saveData('goals', updatedGoals);
+    saveData('todaysGoals', updatedTodaysGoals);
     saveData('goalsLibrary', updatedLibrary);
     
     return newGoal.id;
@@ -441,23 +503,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           : goal
       );
 
+    const updatedGoals = updateGoalInArray(goals);
     const updatedTodaysGoals = updateGoalInArray(todaysGoals);
     const updatedLibrary = updateGoalInArray(goalsLibrary);
 
+    setGoals(updatedGoals);
     setTodaysGoals(updatedTodaysGoals);
     setGoalsLibrary(updatedLibrary);
     
+    saveData('goals', updatedGoals);
     saveData('todaysGoals', updatedTodaysGoals);
     saveData('goalsLibrary', updatedLibrary);
   };
 
   const deleteGoal = (goalId: string) => {
+    const updatedGoals = goals.filter(goal => goal.id !== goalId);
     const updatedTodaysGoals = todaysGoals.filter(goal => goal.id !== goalId);
     const updatedLibrary = goalsLibrary.filter(goal => goal.id !== goalId);
     
+    setGoals(updatedGoals);
     setTodaysGoals(updatedTodaysGoals);
     setGoalsLibrary(updatedLibrary);
     
+    saveData('goals', updatedGoals);
     saveData('todaysGoals', updatedTodaysGoals);
     saveData('goalsLibrary', updatedLibrary);
   };
@@ -509,7 +577,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     console.log('Setting timer for goal:', goalId);
   };
 
-  const updateGoalSchedule = (goalId: string, schedule: { start: string; end: string }) => {
+  const updateGoalSchedule = (goalId: string, schedule: any) => {
     updateGoal(goalId, { schedule });
   };
 
@@ -1206,6 +1274,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const contextValue: AppContextType = {
     // Goals
+    goals,
     todaysGoals,
     goalsLibrary,
     progressToday,
@@ -1216,6 +1285,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     uncompleteGoal,
     getGoalById,
     toggleAutomaticGoal,
+    
+    // Tasks
+    tasks,
+    addTask,
+    updateTask,
+    deleteTask,
     
     // Daily Plans
     dailyPlans,
@@ -1328,10 +1403,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
 export const useAppContext = () => {
   const context = React.useContext(AppContext);
-  if (context === undefined) {
+  if (context === null) {
     throw new Error('useAppContext must be used within an AppProvider');
   }
   return context;
 };
 
+export { AppContext };
 export default AppContext;
