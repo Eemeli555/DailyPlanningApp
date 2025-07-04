@@ -11,7 +11,7 @@ import { COLORS } from '@/constants/theme';
 import GoalItem from '@/components/GoalItem';
 import { Goal } from '@/types';
 import { getCompletionColorForProgress } from '@/utils/helpers';
-import DailyPlannerTable from '@/components/DailyPlannerTable';
+import DailyScheduleOverview from '@/components/DailyScheduleOverview';
 import EnhancedCalendarView from '@/components/EnhancedCalendarView';
 import FutureDayPlanningModal from '@/components/FutureDayPlanningModal';
 
@@ -121,6 +121,10 @@ export default function CalendarScreen() {
     );
   };
 
+  // Get the daily plan for the selected date
+  const selectedDateString = format(selectedDate, 'yyyy-MM-dd');
+  const todaysPlan = getDailyPlan(selectedDateString);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
@@ -197,13 +201,9 @@ export default function CalendarScreen() {
               {format(selectedDate, 'EEEE, MMMM d, yyyy')}
             </Text>
             
-            <DailyPlannerTable 
-              date={format(selectedDate, 'yyyy-MM-dd')}
-              onScheduleGoal={(goal, timeSlot) => {
-                setSelectedGoal(goal);
-                setSelectedTimeSlot(timeSlot);
-                setShowScheduleModal(true);
-              }}
+            <DailyScheduleOverview 
+              date={selectedDate}
+              goals={todaysPlan?.goals || []}
             />
           </Animated.View>
         </ScrollView>
