@@ -13,9 +13,10 @@ interface EnhancedCalendarViewProps {
   currentDate: Date;
   onDateChange: (date: Date) => void;
   onDayPress?: (date: Date) => void;
+  onPlanDay?: (date: Date) => void;
 }
 
-const EnhancedCalendarView = ({ currentDate, onDateChange, onDayPress }: EnhancedCalendarViewProps) => {
+const EnhancedCalendarView = ({ currentDate, onDateChange, onDayPress, onPlanDay }: EnhancedCalendarViewProps) => {
   const { 
     dailyPlans, 
     journalEntries, 
@@ -105,8 +106,12 @@ const EnhancedCalendarView = ({ currentDate, onDateChange, onDayPress }: Enhance
   };
 
   const handlePlanDay = (date: Date) => {
-    setSelectedPlanningDate(date);
-    setShowPlanningModal(true);
+    if (onPlanDay) {
+      onPlanDay(date);
+    } else {
+      setSelectedPlanningDate(date);
+      setShowPlanningModal(true);
+    }
   };
 
   const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

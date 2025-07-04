@@ -209,8 +209,9 @@ export default function CalendarScreen() {
         </ScrollView>
       ) : (
         <EnhancedCalendarView 
-          selectedDate={selectedDate}
-          onDateSelect={handleDateSelect}
+          currentDate={selectedDate}
+          onDateChange={setSelectedDate}
+          onDayPress={handleDateSelect}
           onPlanDay={() => setShowPlanningModal(true)}
         />
       )}
