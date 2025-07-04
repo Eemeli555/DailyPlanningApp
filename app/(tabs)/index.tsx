@@ -186,6 +186,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInUp.delay(400)}>
           <DailyScheduleOverview 
             date={todayString}
+            goals={todaysGoals}
             onScheduleGoal={handleScheduleGoal}
           />
         </Animated.View>
