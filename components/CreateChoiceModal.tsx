@@ -72,7 +72,7 @@ const CreateChoiceModal = ({ visible, onClose }: CreateChoiceModalProps) => {
           <View style={styles.header}>
             <Text style={styles.title}>What would you like to create?</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <X size={24} color={COLORS.gray[600]} />
+              <X size={24} color={COLORS.neutral[600]} />
             </TouchableOpacity>
           </View>
 
@@ -93,7 +93,7 @@ const CreateChoiceModal = ({ visible, onClose }: CreateChoiceModalProps) => {
                     <Text style={styles.choiceTitle}>{choice.title}</Text>
                     <Text style={styles.choiceDescription}>{choice.description}</Text>
                   </View>
-                  <Plus size={20} color={COLORS.gray[400]} />
+                  <Plus size={20} color={COLORS.neutral[400]} />
                 </TouchableOpacity>
               </Animated.View>
             ))}
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '600',
-    color: COLORS.gray[900],
+    color: COLORS.neutral[900],
     flex: 1,
   },
   closeButton: {
@@ -165,12 +165,12 @@ const styles = StyleSheet.create({
   choiceTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.gray[900],
+    color: COLORS.neutral[900],
     marginBottom: 2,
   },
   choiceDescription: {
     fontSize: 14,
-    color: COLORS.gray[600],
+    color: COLORS.neutral[600],
   },
 });
 
