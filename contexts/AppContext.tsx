@@ -1235,14 +1235,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
 
     const moodData = last7Days.map(date => {
-      const entry = getDailyEntry(date);
-      return entry ? entry.mood : 5;
+      const entry = journalEntries.find(e => e.date === date && e.mood !== undefined);
+      return entry ? entry.mood || 5 : 5;
+    });
+
+    const energyData = last7Days.map(date => {
+      const entry = journalEntries.find(e => e.date === date && e.energy !== undefined);
+      return entry ? entry.energy || 5 : 5;
+    });
+
+    const stressData = last7Days.map(date => {
+      const entry = journalEntries.find(e => e.date === date && e.stress !== undefined);
+      return entry ? entry.stress || 5 : 5;
     });
 
     const sleepData7Days = last7Days.map(date => {
       const sleep = sleepData.find(s => s.date === date);
       return sleep ? sleep.duration : 0;
     });
+
+    const averageMood = moodData.reduce((a, b) => a + b, 0) / 7;
+    const averageEnergy = energyData.reduce((a, b) => a + b, 0) / 7;
+    const averageStress = stressData.reduce((a, b) => a + b, 0) / 7;
 
     return {
       goalCompletionRate,
@@ -1252,8 +1266,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       dates: last7Days,
       averageGoalCompletion: goalCompletionRate.reduce((a, b) => a + b, 0) / 7,
       averageHabitCompletion: habitCompletionRate.reduce((a, b) => a + b, 0) / 7,
-      averageMood: moodData.reduce((a, b) => a + b, 0) / 7,
       averageSleep: sleepData7Days.reduce((a, b) => a + b, 0) / 7,
+      mood: {
+        averageMood,
+        moodTrend: averageMood > 5 ? 'positive' : averageMood < 5 ? 'negative' : 'neutral',
+        energyTrend: averageEnergy > 5 ? 'positive' : averageEnergy < 5 ? 'negative' : 'neutral',
+        stressTrend: averageStress > 5 ? 'negative' : averageStress < 5 ? 'positive' : 'neutral',
+      },
     };
   };
 
